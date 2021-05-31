@@ -392,17 +392,48 @@ suppressMessages(local({
   
   
   
-  # only one match due to overwriting
+  # UNIT TEST: extract_context_affixed_values: only one match due to overwriting
   pat_dt <- data.table::data.table(
-    pattern_name = c("a", "w"), 
-    prefix = c("w", "^"), 
-    value = c("a", "w"), 
-    suffix = c("t", "a")
+    pattern_name = c("secondary", "primary"),
+    prefix = c("second most prevalent grade ", "most prevalent grade "),
+    value = c("[3-5]", "[3-5]"),
+    suffix = c("", "")
   )
-  result_dt <- extract_context_affixed_values(text = "wat", pat_dt,
-                                              verbose = FALSE)
+  result_dt <- extract_context_affixed_values(
+    text = "second most prevalent grade 3", 
+    pat_dt,
+    verbose = FALSE
+  )
   stopifnot(
-    identical(result_dt[["value"]], "a")
+    identical(result_dt[["value"]], "3")
+  )
+  
+  # UNIT TEST: extract_context_affixed_values: illustrative unit tests
+  pat_dt <- data.table::data.table(
+    pattern_name = c("a", "b", "c"), 
+    prefix = c("primary grade[ ]*", "secondary grade[ ]*", "gleason score[ ]*"), 
+    value = c("[3-5]", "[3-5]", "[6-90]"), 
+    suffix = c("", "", "")
+  )
+  texts <- c(
+    "primary grade 3",
+    "secondary grade 4", 
+    "primary grade 5 secondary grade 3", 
+    "secondary grade 3 and primary grade 5, therefore gleason score 8",
+    "primary grade 5 gleason score 8"
+  )
+  result_dt <- extract_context_affixed_values(
+    text = texts, 
+    pat_dt,
+    verbose = FALSE
+  )
+  stopifnot(
+    nrow(result_dt) == 9L,
+    result_dt$value[result_dt$pos == 1L] == c("3"),
+    result_dt$value[result_dt$pos == 2L] == c("4"),
+    result_dt$value[result_dt$pos == 3L] == c("5", "3"),
+    result_dt$value[result_dt$pos == 4L] == c("3", "5", "8"),
+    result_dt$value[result_dt$pos == 5L] == c("5", "8")
   )
   
   
