@@ -349,12 +349,66 @@ determine_element_sets <- function(dt, n_max_each = 5L) {
 }
 
 
+#' @title Reformat Gleason Score Components
+#' @description
+#' Combine individual Gleason components (A, B, C) into Gleason scores
+#' (A + B = C).
+#' @param dt `[data.table]` (mandatory, no default)
+#' 
+#' A `data.table` with columns
+#' - `text_id`: integer identifiers for individual texts; one text may have one
+#'   or more rows in this table
+#' - `obs_id`: integer identifiers for observed components; must be unique to
+#'   each row
+#' - `text`: character string vector of texts
+#' - `match_type`: as given by function `infer_match_type`
+#' - `a`: integer, primary component value
+#' - `b`: integer, secondary component value
+#' - `c`: integer, Gleason scoresum
+#' 
+#' See **Details** for more info.
+#' @details
+#' Convert from so-called "typed" formatting (where we remember the type of the
+#' match, e.g. "A + B = C", "identifier-C", etc.) to "standard" formatting
+#' (where we forget the type of the match and combine individual primary and
+#' secondary Gleason components into at least A + B scores).
+#' 
+#' This function relies on `text_id` to ensure components are not combined 
+#' across different texts and `obs_id` for the combinations themselves.
+#' `dt` is asserted to be keyed (sorted) by first `text_id` and then `obs_id`.
+#' At least one of the columns `a`, `b`, and `c` should be non-NA.
+#' 
+#' `obs_id` should contain running numbers such as simply `1:nrow(dt)`. Whether
+#' components are attempted to be combined depends on whether the components are
+#' "adjacent," i.e. whether `obs_id[i-1] == obs_id[i] - 1L`. When there are two
+#' or more components is sequence, each adjacent (e.g. `obs_id` values 1:5),
+#' these are temporarily grouped and attempted to be combined. Components are
+#' not adjacent e.g. in text 
+#' 
+#'   "primary gleason 3, gleason 3 + 4, secondary gleason 4"
+#' 
+#' because this would have three rows with a = 3, a=3 and b=4, and b=4, 
+#' respectively, and combination only takes into account those rows where
+#' only a, b, or c is available.
+#' 
+#' The combination
+#' allows for several lists of components to be combined, such as {A,B} ->A + B 
+#' and {B, A} -> A + B. This combination is performed using function
+#' `determine_element_sets`. Also repeated components (e.g. {A,A,B,B}) are 
+#' combined, where up to five repetitions are allowed. `determine_element_sets`
+#' is run separately for each temporary group based on `obs_id` adjacency.
+#' 
+#' @return
+#' Returns a `data.table` with all the same columns as arg `dt` expect
+#' `match_type`.
+
 typed_format_dt_to_standard_format_dt <- function(dt) {
   stopifnot(
     data.table::is.data.table(dt),
     c("text_id", "obs_id", "text", "match_type", "a", "b", "c") %in% names(dt),
     is.integer(dt[["obs_id"]]),
-    !duplicated(dt[["obs_id"]])
+    !duplicated(dt[["obs_id"]]),
+    identical(data.table::key(dt)[1:2], c("text_id", "obs_id"))
   )
   check_match_types(dt[["match_type"]])
   check_gleason_abc_values(a = dt[["a"]], b = dt[["b"]], c = dt[["c"]])
@@ -417,6 +471,25 @@ typed_format_dt_to_standard_format_dt <- function(dt) {
   out[] 
 }
 
+local({
+  ex_dt <- data.table::data.table(
+    text_id = 1L,
+    obs_id = 1:3,
+    text = "don't really need this",
+    match_type = c("a", "b", "c"),
+    a = c(3L, NA_integer_, NA_integer_),
+    b = c(NA_integer_, 4L, NA_integer_),
+    c = c(NA_integer_, NA_integer_, 7L)
+  )
+  data.table::setkeyv(ex_dt, c("text_id", "obs_id"))
+  ex_result_dt <- typed_format_dt_to_standard_format_dt(dt = ex_dt)
+  stopifnot(
+    nrow(ex_result_dt) == 1L,
+    ex_result_dt[["a"]] == 3L,
+    ex_result_dt[["b"]] == 4L,
+    ex_result_dt[["c"]] == 7L
+  )
+})
 
 
 
