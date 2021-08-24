@@ -291,15 +291,83 @@ standard_format_dt_to_typed_format_dt <- function(dt) {
 }
 
 
-determine_element_sets <- function(dt, n_max_each = 5L) {
+#' @title Combinations of Gleason Score Elements
+#' @description 
+#' Identify Gleason score elements that belong together.
+#' @param dt `[data.table]` (mandatory, no default)
+#' 
+#' a `data.table` with columns
+#' - `a`: primary Gleason score
+#' - `b`: second Gleason score
+#' - `c`: Gleason score sum
+#' 
+#' Exactly one of these columns must be non-NA for each row. That is, if all
+#' are NA or two more are not NA, this function will raise an error.
+#' `dt` should NOT have columns `grp`, `grp_type`, and `type`, as these
+#' are added by this function into `dt`. `dt` is not copied but is modified
+#' in place.
+#' 
+#' @param n_max_each `[integer]` (optional, default `5L`)
+#' 
+#' maximum number of times each element type can be repeat (as in e.g. 
+#' `rep(1:3, each = n_max_each)`); see **Details**
+#' 
+#' @details
+#' The problem this functions is intended to solve is the situation where
+#' multiple Gleason score elements (e.g. `{A, A, B, B, C}`) have been collected
+#' from a single text, and we wish to assign individual elements into groups
+#' of elements, where a group of elements can be used to construct  standard 
+#' form presentations of Gleason scores. E.g. in `{A, A, B, B, C}` we wish
+#' to identify the 1st, 3rd, and 5th elements as belonging in the same group,
+#' and the 2nd and 4th as belonging in their own (`{{A,B,C}, {A,B}}`).
+#' 
+#' This function contains a fixed list of allowed combinations which are 
+#' interpreted as belonging in the same group:
+#' - `{C, A, B}`
+#' - `{C, B, A}`
+#' - `{A, B, C}`
+#' - `{B, A, C}`
+#' - `{A, B}`
+#' - `{A}`
+#' - `{B}`
+#' - `{C}`
+#' this list is looped over in the given order. At each combination, it is 
+#' tested whether `rep(combination, each = n_each)` matches the the observed
+#' types (inferred internally; here `combination` can be e.g. `{C, A, B}`).
+#' `n_max_each` determines how many each-style repeats are allowed at most,
+#' i.e. `n_each` is the changing variable in a for loop over `1:n_max_each`.
+#' The for loop over `1:n_max_each` is run until a match is found, if any.
+#' If no match is found for that `combination`, the next one is tried.
+#' Note that the last three allowed combinations mean that if an element cannot
+#' be grouped with anything else, it will be the sole member of its own group.
+#' 
+#' @examples
+#' 
+#' # simple example
+#' ex_dt <- data.table::data.table(
+#'    a = c(4L, NA, NA),
+#'    b = c(NA, 5L, NA),
+#'    c = c(NA, NA, 9L)
+#' )
+#' determine_element_combinations(ex_dt)
+#' # non-simple example
+#' ex_dt <- data.table::data.table(
+#'    a = c(4L, 4L, NA, NA, NA, NA),
+#'    b = c(NA, NA, 3L, 4L, 5L, NA),
+#'    c = c(NA, NA, NA, NA, NA, 9L)
+#' )
+#' determine_element_combinations(ex_dt)
+determine_element_combinations <- function(dt, n_max_each = 5L) {
   requireNamespace("data.table")
   stopifnot(
     data.table::is.data.table(dt),
     c("a", "b", "c") %in% names(dt),
-    !c("grp", "grp_type", "type") %in% names(dt)
+    !c("grp", "grp_type", "type") %in% names(dt),
+    # only one non-NA, i.e. two are NA
+    rowSums(dt[, lapply(.SD, is.na), .SDcols = c("a", "b", "c")]) == 2L
   )
   
-  allowed_sets <- list(
+  allowed_combinations <- list(
     c("c", "a", "b"),
     c("c", "b", "a"),
     c("a", "b", "c"),
@@ -321,10 +389,10 @@ determine_element_sets <- function(dt, n_max_each = 5L) {
   max_grp <- 0L
   while (anyNA(dt[["grp"]])) {
     wh_first <- which(is.na(dt[["grp"]]))[1L]
-    for (i in seq_along(allowed_sets)) {
+    for (i in seq_along(allowed_combinations)) {
       break_search <- FALSE
       for (n_each in 1:n_max_each) {
-        candidate <- rep(allowed_sets[[i]], each = n_each)
+        candidate <- rep(allowed_combinations[[i]], each = n_each)
         r <- wh_first:min(n, wh_first + length(candidate) - 1L)
         if (identical(dt[["type"]][r], candidate)) {
           dt[
@@ -394,8 +462,8 @@ determine_element_sets <- function(dt, n_max_each = 5L) {
 #' The combination
 #' allows for several lists of components to be combined, such as {A,B} ->A + B 
 #' and {B, A} -> A + B. This combination is performed using function
-#' `determine_element_sets`. Also repeated components (e.g. {A,A,B,B}) are 
-#' combined, where up to five repetitions are allowed. `determine_element_sets`
+#' `determine_element_combinations`. Also repeated components (e.g. {A,A,B,B}) are 
+#' combined, where up to five repetitions are allowed. `determine_element_combinations`
 #' is run separately for each temporary group based on `obs_id` adjacency.
 #' 
 #' Any "orphan" A or B values are retained. E.g. if {A,B,A} are associated with
@@ -438,7 +506,10 @@ typed_format_dt_to_standard_format_dt <- function(dt) {
     }))
     elem_dt[, ".__processing_grp" := .GRP, by = c("text_id", ".__processing_grp")]
     elem_dt <- elem_dt[
-      j = determine_element_sets(dt = data.table::as.data.table(.SD), n_max_each = 6L),
+      j = determine_element_combinations(
+        dt = data.table::as.data.table(.SD), 
+        n_max_each = 6L
+      ),
       by = ".__processing_grp"
       ]
     elem_dt[, ".__processing_grp" := .GRP, by = c("grp", ".__processing_grp")]
