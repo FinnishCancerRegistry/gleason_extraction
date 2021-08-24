@@ -450,20 +450,17 @@ determine_element_combinations <- function(dt, n_max_each = 5L) {
 #' components are attempted to be combined depends on whether the components are
 #' "adjacent," i.e. whether `obs_id[i-1] == obs_id[i] - 1L`. When there are two
 #' or more such adjacent components in sequence (e.g. `obs_id` values 1:5),
-#' these are temporarily grouped and attempted to be combined. Components are
-#' not adjacent e.g. in text 
+#' these are temporarily grouped and attempted to be combined. E.g. the input
+#' table for text 
 #' 
 #'   "primary gleason 3, gleason 3 + 4, secondary gleason 4"
 #' 
-#' because this would have three rows with a = 3, a=3 and b=4, and b=4, 
-#' respectively, and combination only takes into account those rows where
-#' only a, b, or c is available.
+#' has three rows with {A=3}, {A=3, B=4}, and {B=4}. Here row {A=3, B=4} is not
+#' considered for grouping, but neither are {A=3} and {B=4}, because 
+#' {A=3, B=4} is between them, breaking the adjacency.
 #' 
-#' The combination
-#' allows for several lists of components to be combined, such as {A,B} ->A + B 
-#' and {B, A} -> A + B. This combination is performed using function
-#' `determine_element_combinations`. Also repeated components (e.g. {A,A,B,B}) are 
-#' combined, where up to five repetitions are allowed. `determine_element_combinations`
+#' Combinations are identified using function
+#' `determine_element_combinations`. It
 #' is run separately for each temporary group based on `obs_id` adjacency.
 #' 
 #' Any "orphan" A or B values are retained. E.g. if {A,B,A} are associated with
