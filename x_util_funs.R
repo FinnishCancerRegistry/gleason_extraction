@@ -381,7 +381,7 @@ determine_element_sets <- function(dt, n_max_each = 5L) {
 #' `obs_id` should contain running numbers such as simply `1:nrow(dt)`. Whether
 #' components are attempted to be combined depends on whether the components are
 #' "adjacent," i.e. whether `obs_id[i-1] == obs_id[i] - 1L`. When there are two
-#' or more components is sequence, each adjacent (e.g. `obs_id` values 1:5),
+#' or more such adjacent components in sequence (e.g. `obs_id` values 1:5),
 #' these are temporarily grouped and attempted to be combined. Components are
 #' not adjacent e.g. in text 
 #' 
@@ -423,10 +423,12 @@ typed_format_dt_to_standard_format_dt <- function(dt) {
   elem_dt <- dt[is_single_elem_match, ]
   if (nrow(elem_dt) > 0L) {
     # sequential observations have diff(obs_id) == 1L, non-seq. have > 1L;
-    # latter cases are first in their set of sequential observations
+    # latter cases are marked as the first observations in their own group of 
+    # sequential observations
     wh_first_in_seq_set <- union(1L, elem_dt[, which(c(1L, diff(obs_id)) > 1L)])
     wh_last_in_seq_set <- union(wh_first_in_seq_set[-1L] - 1L, nrow(elem_dt))
     elem_dt[, ".__processing_grp" := NA_integer_]
+    # create temporary groups of observations
     invisible(lapply(seq_along(wh_first_in_seq_set), function(i) {
       elem_dt[
         i = wh_first_in_seq_set[i]:wh_last_in_seq_set[i], 
