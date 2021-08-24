@@ -398,6 +398,9 @@ determine_element_sets <- function(dt, n_max_each = 5L) {
 #' combined, where up to five repetitions are allowed. `determine_element_sets`
 #' is run separately for each temporary group based on `obs_id` adjacency.
 #' 
+#' Any "orphan" A or B values are retained. E.g. if {A,B,A} are associated with
+#' one text, the three values are reformatted into {{A,B}, A}.
+#' 
 #' @return
 #' Returns a `data.table` with all the same columns as arg `dt` expect
 #' `match_type`.
@@ -488,6 +491,25 @@ local({
     ex_result_dt[["a"]] == 3L,
     ex_result_dt[["b"]] == 4L,
     ex_result_dt[["c"]] == 7L
+  )
+  
+  ex_dt <- data.table::data.table(
+    text_id = 1L,
+    obs_id = 1:3,
+    text = "don't really need this",
+    match_type = c("a", "b", "a"),
+    a = c(3L, NA_integer_, 2L),
+    b = c(NA_integer_, 4L, NA_integer_),
+    c = c(NA_integer_, NA_integer_, NA_integer_)
+  )
+  data.table::setkeyv(ex_dt, c("text_id", "obs_id"))
+  ex_result_dt <- typed_format_dt_to_standard_format_dt(dt = ex_dt)
+  stopifnot(
+    nrow(ex_result_dt) == 2L,
+    ex_result_dt[["a"]][1] == 3L,
+    ex_result_dt[["b"]][1] == 4L,
+    ex_result_dt[["a"]][2] == 2L,
+    is.na(ex_result_dt[["b"]][2])
   )
 })
 
