@@ -490,7 +490,7 @@ parse_gleason_value_string_elements <- function(
     )
   }), use.names = TRUE, fill = TRUE)
   
-  rbind(
+  parsed_dt <- rbind(
     data.table::data.table(
       pos = integer(0L), 
       value_string = character(0L),
@@ -503,9 +503,11 @@ parse_gleason_value_string_elements <- function(
       text = character(0L), 
       src = character(0L)
     ),
-    parsed_dt[],
+    parsed_dt,
     use.names = TRUE, fill = TRUE
   )
+  data.table::setkeyv(parsed_dt, c("text_id", "obs_id"))
+  return(parsed_dt[])
 }
 
 extract_gleason_scores <- function(
@@ -552,6 +554,7 @@ extract_gleason_scores <- function(
     parsed_dt[, c("text", "src") := value_string]
     parsed_dt[, "orig_obs_id" := obs_id]
     parsed_dt[, "obs_id" := text_id * 100L + 1:.N, by = "text_id"]
+    data.table::setkeyv(parsed_dt, c("text_id", "obs_id"))
     id_dt <- parsed_dt[, .(orig_obs_id, obs_id)]
     
     parsed_dt <- ut$typed_format_dt_to_standard_format_dt(
