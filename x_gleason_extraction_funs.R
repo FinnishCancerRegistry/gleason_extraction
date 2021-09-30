@@ -12,77 +12,165 @@ source("x_util_funs.R", local = ut, encoding = "UTF-8")
 cf <- new.env()
 source("x_confusion_funs.R", local = cf, encoding = "UTF-8")
 
-# basic regex elements ----------------------------------------------------
+# word elements ----------------------------------------------------------------
+# `word_sep` defines what must separates words.
 word_sep <- "[ ,-]{1,3}"
+
+# `optional_word_sep` defines what may separate words.
 optional_word_sep <- "[ ,-]{0,2}"
 
+# `word_suffices` defines what characters words can use
+# in inflections. E.g. "gradus" -> "gradusta", etc. The dot `"."` was included
+# to allow for abbreviated forms, e.g. "yht.pist." meaning "yhteispistemäärä"
+# meaning "total score".
 word_suffices <- "[.a-zåäö]*"
-one_arbitrary_natural_language_word <- sub("\\*", "+", word_suffices)
+
+# `one_arbitrary_natural_language_word` is an alias of `word_suffices` because
+# both in effect define what characters a word is allowed to have (i.e.
+# no difference in characters allowed in suffix vs. body of word).
+one_arbitrary_natural_language_word <- word_suffices
+
+# `zero_to_three_arbitrary_natural_language_words` allows
+# `one_arbitrary_natural_language_word` to repeat zero, one, two, or three 
+# times. The word separator is `optional_word_sep`.
 zero_to_three_arbitrary_natural_language_words <- paste0(
   "(", one_arbitrary_natural_language_word, optional_word_sep, "){0,3}"
 )
 stopifnot(
-  sub(zero_to_three_arbitrary_natural_language_words, "_", "yks kaks kol") == "_"
+  sub(
+    zero_to_three_arbitrary_natural_language_words, 
+    "_", 
+    "1234 one two three four"
+  ) == "1234 _four"
 )
 
+# other basic elements ---------------------------------------------------------
+
+# `plus` defines what addition must look like.
 plus <- "[ ]?[+][ ]?"
+
+# `equals` defines how the equal sign is used in text.
 equals <- "[ ]?[=][ ]?"
 
+# `number_range` defines what ranges of single-digit numbers look like.
 number_range <- "[0-9]+[ ]?[-][ ]?[0-9]+"
+# `number_range_in_parenthesis` defines single-digit number ranges in 
+# parenthesis, e.g. "( 0-9 )".
 number_range_in_parenthesis <- paste0("\\([ ]?", number_range, "[ ]?\\)")
 
+# `optional_nondigit_buffer_5` is intended to allow for arbitrary non-digit
+# characters between two things (between zero and five).
 optional_nondigit_buffer_5 <- "[^0-9]{0,5}"
 
+# `optional_nondigit_buffer_20` is intended to allow for arbitrary non-digit
+# characters between two things (between zero and twenty).
 optional_nondigit_buffer_20 <- "[^0-9]{0,20}"
 
-expr_end <- "([^0-9]|$)"
+# `default_regex_suffix` defines a default ending for regular expression
+# used to actually extract the Gleason value and its context 
+# (i.e. it is the default RHS context).
+default_regex_suffix <- "([^0-9]|$)"
 
+# `arbitrary_expression_in_parenthesis` defines any expression in parenthesis.
 arbitrary_expression_in_parenthesis <- "\\([^)]*\\)"
 
 # funs --------------------------------------------------------------------
+# Function `optional` turns input `regex` into an "optional regex" by 
+# surrounding it with parentheses and appending `?` at the end.
+# Even if `regex` has "+" or similar at the end, it becomes optional
+# after passing through this function.
 optional <- function(regex) {
-  # NOTE: even if regex has "+" or similar at the end, it becomes optional
-  # after passing through this function
   paste0("(", regex, ")?")
 }
 stopifnot(
+  !grepl("a+", "b"),
   grepl(optional("a+"), "b")
 )
 
-whitelist_to_whitelist_regex <- function(whitelist, match_count = "+") {
-  sep <- "([ ,-]{0,2}| ja | tai | och | eller )"
+whitelist_sep <- function() {
+  # Function `whitelist_sep` always returns regex 
+  # `"([ ,-]{0,2}| ja | tai | och | eller )"`.
+  "([ ,-]{0,2}| ja | tai | och | eller )"
+}
+
+whitelist_to_whitelist_regex <- function(
+  whitelist, 
+  match_count = "+"
+) {
+  # Function `whitelist_to_whitelist_regex` turns a list of whitelist 
+  # expressions into regex of those expressions. Each expression
+  # may be separated by `whitelist_sep()` and repeat to the quantity specified
+  # via argument `match_count`.
+  stopifnot(
+    is.character(whitelist),
+    is.character(match_count),
+    length(match_count) == 1
+  )
   paste0(
     "(",
     "(",
     paste0(whitelist, collapse = "|"), 
     ")",
-    sep,
+    whitelist_sep(),
     ")",
     match_count
   )
 }
+stopifnot(
+  sub(
+    whitelist_to_whitelist_regex(c("hi", "yo")),
+    "",
+    "hi yo hi hi yo"
+  ) == "",
+  sub(
+    whitelist_to_whitelist_regex(c("hi", "yo")),
+    "",
+    "hi yo hiya yoman ho"
+  ) == "ya yoman ho"
+)
 
-word_whitelist_to_word_whitelist_regex <- function(whitelist, match_count = "+") {
-  # allows for a set of words to repeat an arbitrary number of times.
-  # e.g. whitelist = c("hi", "yo") -> allows for "hi yo hii yoo hio yoyo"
-  sep <- "([ ,-]{0,2}| ja | tai | och | eller )"
-  stopifnot(is.character(whitelist))
+
+word_whitelist_to_word_whitelist_regex <- function(
+  whitelist, 
+  match_count = "+"
+) {
+  # Function `word_whitelist_to_word_whitelist_regex`
+  # allows for a set of words to repeat the requested number of times
+  # (defined via argument `match_count`)
+  # in any order. The words may be separated by anything that matches
+  # `whitelist_sep()`. The words are allowed to inflect
+  # by appending regex `word_suffices` to each word in `whitelist`.
+  stopifnot(
+    is.character(whitelist),
+    is.character(match_count),
+    length(match_count) == 1
+  )
   paste0(
     "(", 
     "(",
     paste0(whitelist, collapse = "|"), 
     ")",
     word_suffices, 
-    sep,
+    whitelist_sep(),
     ")",
     match_count
   )
 }
 stopifnot(
-  grepl(word_whitelist_to_word_whitelist_regex(c("hi", "yo")), "hi yo hiya yoman"),
-  grepl(word_whitelist_to_word_whitelist_regex(c("hi", "yo")), "hihihi yoyoyo")
+  sub(
+    word_whitelist_to_word_whitelist_regex(c("hi", "yo")),
+    "",
+    "hi yo hi hi yo"
+  ) == "",
+  sub(
+    word_whitelist_to_word_whitelist_regex(c("hi", "yo")),
+    "",
+    "hi yo hiya yoman ho"
+  ) == "ho"
 )
 
+# Function `multiple_alternative_value_matches` turns a regex capturing a value
+# into one that can capture multiple ones occurring in sequence.
 multiple_alternative_value_matches <- function(x) {
   stopifnot(
     is.character(x)
@@ -101,7 +189,10 @@ stopifnot(
 )
 
 # grade / score values ----------------------------------------------------
+# `score_a_or_b` defines what kinds of grades (A and B in A + B = C) are 
+# extracted.
 score_a_or_b <- "[2-5]"
+# `score_c` defines what kinds of scoresums (C in A + B = C) are extracted.
 score_c <- "(10|[6-9])"
 
 # whitelists and their derivatives ----------------------------------------
@@ -224,7 +315,7 @@ fcr_pattern_dt <- local({
         paste0(base_gleason_regex, zero_to_three_arbitrary_natural_language_words)
       ),
       value = addition_values,
-      suffix = expr_end
+      suffix = default_regex_suffix
     )
     addition_dt[]
   })
@@ -245,7 +336,7 @@ fcr_pattern_dt <- local({
       optional_word_sep
     )
     kw_all_a_value <- score_a_or_b
-    kw_all_a_suffix <- expr_end
+    kw_all_a_suffix <- default_regex_suffix
     
     # kw_a ---------------------------------------------------------------------
     kw_a_prefix <- paste0(
@@ -256,7 +347,7 @@ fcr_pattern_dt <- local({
       optional_nondigit_buffer_5
     )
     kw_a_value <- score_a_or_b
-    kw_a_suffix <- expr_end
+    kw_a_suffix <- default_regex_suffix
     
     # kw_b ---------------------------------------------------------------------
     kw_b_prefix <- paste0(
@@ -269,7 +360,7 @@ fcr_pattern_dt <- local({
       optional_nondigit_buffer_5
     )
     kw_b_value <- score_a_or_b
-    kw_b_suffix <- expr_end
+    kw_b_suffix <- default_regex_suffix
     
     # kw_c ---------------------------------------------------------------------
     whitelist_c_optional <- unique(c(
@@ -313,7 +404,7 @@ fcr_pattern_dt <- local({
     )
     
     kw_c_value <- score_c
-    kw_c_suffix <- expr_end
+    kw_c_suffix <- default_regex_suffix
     
     # kw_t ---------------------------------------------------------------------
     whitelist_tertiary <- c(
@@ -332,7 +423,7 @@ fcr_pattern_dt <- local({
       optional_word_sep
     )
     kw_t_value <- score_a_or_b
-    kw_t_suffix <- expr_end
+    kw_t_suffix <- default_regex_suffix
     
     # a_kw ---------------------------------------------------------------------
     a_kw_prefix <- paste0(base_gleason_regex, optional_nondigit_buffer_5)
