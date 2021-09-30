@@ -12,56 +12,32 @@ source("x_util_funs.R", local = ut, encoding = "UTF-8")
 cf <- new.env()
 source("x_confusion_funs.R", local = cf, encoding = "UTF-8")
 
-
 # basic regex elements ----------------------------------------------------
 word_sep <- "[ ,-]{1,3}"
 optional_word_sep <- "[ ,-]{0,2}"
 
 word_suffices <- "[.a-zåäö]*"
 one_arbitrary_natural_language_word <- sub("\\*", "+", word_suffices)
-zero_to_one_arbitrary_natural_language_words <- paste0(
-  "(", one_arbitrary_natural_language_word, optional_word_sep, "){0,1}"
-)
-zero_to_two_arbitrary_natural_language_words <- paste0(
-  "(", one_arbitrary_natural_language_word, optional_word_sep, "){0,2}"
-)
 zero_to_three_arbitrary_natural_language_words <- paste0(
   "(", one_arbitrary_natural_language_word, optional_word_sep, "){0,3}"
 )
-zero_to_four_arbitrary_natural_language_words <- paste0(
-  "(", one_arbitrary_natural_language_word, optional_word_sep, "){0,4}"
-)
-zero_to_five_arbitrary_natural_language_words <- paste0(
-  "(", one_arbitrary_natural_language_word, optional_word_sep, "){0,5}"
-)
 stopifnot(
-  sub(zero_to_five_arbitrary_natural_language_words, "_", "yks kaks kol nel viis") == "_"
+  sub(zero_to_three_arbitrary_natural_language_words, "_", "yks kaks kol") == "_"
 )
-
 
 plus <- "[ ]?[+][ ]?"
 equals <- "[ ]?[=][ ]?"
 
 number_range <- "[0-9]+[ ]?[-][ ]?[0-9]+"
 number_range_in_parenthesis <- paste0("\\([ ]?", number_range, "[ ]?\\)")
-optional_number_range_in_parenthesis <- paste0("(", number_range_in_parenthesis, ")?")
 
-nondigit_buffer_5 <- "[^0-9]{1,5}"
 optional_nondigit_buffer_5 <- "[^0-9]{0,5}"
 
-nondigit_buffer_10 <- "[^0-9]{1,10}"
-optional_nondigit_buffer_10 <- "[^0-9]{0,10}"
-
-nondigit_buffer_20 <- "[^0-9]{1,20}"
 optional_nondigit_buffer_20 <- "[^0-9]{0,20}"
 
 expr_end <- "([^0-9]|$)"
 
 arbitrary_expression_in_parenthesis <- "\\([^)]*\\)"
-optional_arbitrary_expression_in_parenthesis <- paste0(
-  "(", arbitrary_expression_in_parenthesis, ")?"
-)
-
 
 # funs --------------------------------------------------------------------
 optional <- function(regex) {
@@ -111,7 +87,6 @@ multiple_alternative_value_matches <- function(x) {
   stopifnot(
     is.character(x)
   )
-  # paste0("(", x, "([ _]|$))+")
   paste0(x, "(( | / |/| tai | ja | eller | och | and | or |[ ]?-[ ]?)", x, ")*")
 }
 stopifnot(
@@ -125,14 +100,18 @@ stopifnot(
   ) == "4 5"
 )
 
+# grade / score values ----------------------------------------------------
+score_a_or_b <- "[2-5]"
+score_c <- "(10|[6-9])"
+
 # whitelists and their derivatives ----------------------------------------
 whitelist_scoreword <- c(
   "pist", "tyyp", "luok", "score", "gr", "lk", "kl", "mö", "kuvio",
   "arkkitehtuuri"
 )
-whitelist_scoreword_regex <- word_whitelist_to_word_whitelist_regex(whitelist_scoreword)
-
-optional_whitelist_score_regex <- paste0("(", whitelist_scoreword_regex, ")?")
+whitelist_scoreword_regex <- word_whitelist_to_word_whitelist_regex(
+  whitelist_scoreword
+)
 
 whitelist_gleason_word <- "gl[aei]{1,2}s{1,2}[oi]n[a-zåäö]*"
 whitelist_base_optional <- c(
@@ -156,13 +135,6 @@ optional_base_gleason_regex <- whitelist_to_whitelist_regex(
 stopifnot(
   sub(base_gleason_regex, "", "gleason lk (1-5) (jotain muuta)") == "",
   sub(base_gleason_regex, "", "gleason gradus (2-5) (gleasongr2)") == ""
-)
-
-score_a_or_b <- "[2-5]"
-score_c <- "(10|[6-9])"
-score_c_range <- paste0("(10|[6-9])[ ]?[-][ ]?(10|[6-9])")
-optional_score_c_range_in_parenthesis <- paste0(
-  "(\\([ ]?", score_c_range, "[ ]?\\))?"
 )
 
 whitelist_primary <- c(
@@ -254,7 +226,6 @@ fcr_pattern_dt <- local({
       value = addition_values,
       suffix = expr_end
     )
-    # addition_dt[, "value" := multiple_alternative_value_matches(value)]
     addition_dt[]
   })
   
@@ -284,7 +255,6 @@ fcr_pattern_dt <- local({
       optional_word_sep,
       optional_nondigit_buffer_5
     )
-    # kw_a_value <- multiple_alternative_value_matches(score_a_or_b)
     kw_a_value <- score_a_or_b
     kw_a_suffix <- expr_end
     
@@ -298,7 +268,6 @@ fcr_pattern_dt <- local({
       optional_word_sep,
       optional_nondigit_buffer_5
     )
-    # kw_b_value <- multiple_alternative_value_matches(score_a_or_b)
     kw_b_value <- score_a_or_b
     kw_b_suffix <- expr_end
     
@@ -343,7 +312,6 @@ fcr_pattern_dt <- local({
       ) == "gleason score, summa a+b (2-10) "
     )
     
-    # kw_c_value <- multiple_alternative_value_matches(score_c)
     kw_c_value <- score_c
     kw_c_suffix <- expr_end
     
