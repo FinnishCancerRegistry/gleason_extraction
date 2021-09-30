@@ -4,7 +4,7 @@ This repository contains the programme developed in the peer-reviewed study "Acc
 
 The study was conducted at the Finnish Cancer Registry (https://cancerregistry.fi/).
 
-The code has been cleaned and documented after completion of the study without affecting any functionaly. 
+The code has been cleaned and documented after completion of the study without affecting any functionality. 
 To browse the repository in the state it was in at the completion of the study, go to
 https://github.com/WetRobot/gleason_extraction/tree/7946cc2ae5403937a4b5ac30e6a74166af6b7507.
 
