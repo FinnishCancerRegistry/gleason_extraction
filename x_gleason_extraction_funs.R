@@ -40,8 +40,8 @@ stopifnot(
   sub(
     zero_to_three_arbitrary_natural_language_words, 
     "_", 
-    "1234 one two three four"
-  ) == "1234 _four"
+    "one two three four"
+  ) == "_four"
 )
 
 # other basic elements ---------------------------------------------------------
@@ -196,6 +196,8 @@ score_a_or_b <- "[2-5]"
 score_c <- "(10|[6-9])"
 
 # whitelists and their derivatives ----------------------------------------
+# `whitelist_scoreword` contains roots of words which refer to either
+# the scoresum or gradus.
 whitelist_scoreword <- c(
   "pist", "tyyp", "luok", "score", "gr", "lk", "kl", "mö", "kuvio",
   "arkkitehtuuri"
@@ -204,7 +206,15 @@ whitelist_scoreword_regex <- word_whitelist_to_word_whitelist_regex(
   whitelist_scoreword
 )
 
+# `whitelist_gleason_word` defines what variants of "gleason" we search for.
 whitelist_gleason_word <- "gl[aei]{1,2}s{1,2}[oi]n[a-zåäö]*"
+stopifnot(
+  grepl(whitelist_gleason_word, "gleason"),
+  grepl(whitelist_gleason_word, "gliisonin")
+)
+
+# `whitelist_base_optional` contains expressions which may precede e.g. a 
+# scoresum value after the word "gleason".
 whitelist_base_optional <- c(
   whitelist_scoreword_regex,
   paste0("n", word_suffices),
@@ -214,25 +224,44 @@ whitelist_base_optional <- c(
 whitelist_base_optional_regex <- whitelist_to_whitelist_regex(
   whitelist_base_optional, match_count = "*"
 )
+stopifnot(
+  grepl(whitelist_base_optional_regex, "gleason gradus (3-5) n. 8")
+)
+
+# `base_gleason_regex` is `whitelist_base_optional_regex` but also captures
+# the word "gleason".
 base_gleason_regex <- paste0(
   whitelist_gleason_word,
   optional_word_sep,
   whitelist_base_optional_regex
 )
-optional_base_gleason_regex <- whitelist_to_whitelist_regex(
-  c(whitelist_base_optional, whitelist_gleason_word), match_count = "*"
-)
-
 stopifnot(
+  grepl(base_gleason_regex, "gleason gradus (3-5) n. 8"),
   sub(base_gleason_regex, "", "gleason lk (1-5) (jotain muuta)") == "",
   sub(base_gleason_regex, "", "gleason gradus (2-5) (gleasongr2)") == ""
 )
 
+# `optional_base_gleason_regex` is similar to `base_gleason_regex`, but
+# it is agnostic wrt the order of word "gleason" and the filler words before
+# the value.
+optional_base_gleason_regex <- whitelist_to_whitelist_regex(
+  c(whitelist_base_optional, whitelist_gleason_word), match_count = "*"
+)
+stopifnot(
+  grepl(optional_base_gleason_regex, "gradus gleason (3-5) n. 8")
+)
+
+
+# `whitelist_primary` contains the roots of words that indicate primary grade.
 whitelist_primary <- c(
   "prim[aä]{1,2}", "pääluok", "hufvudkl", "valtaos", "enimm", 
   "tavalli", "vallits", "ylei", "hallits", "vanlig"
 )
-whitelist_primary_regex <- word_whitelist_to_word_whitelist_regex(whitelist_primary)
+whitelist_primary_regex <- word_whitelist_to_word_whitelist_regex(
+  whitelist_primary
+)
+# `optional_or_aggressive_regex` is intended to capture expressions in text such 
+# as "or most aggressive" (after e.g. "primary")
 optional_or_aggressive_regex <- "([ ]?(/|tai|eller)[ ]?aggres[.a-zåäö]*)?"
 whitelist_primary_regex <- paste0(
   whitelist_primary_regex,
@@ -246,8 +275,11 @@ stopifnot(
   sub(whitelist_primary_regex, "", "primääri") == ""
 )
 
+# `whitelist_secondary_regex` captures secondary gradus expressions in text.
 whitelist_secondary <- whitelist_primary[-(1:5)]
-whitelist_secondary_regex <-  word_whitelist_to_word_whitelist_regex(whitelist_secondary)
+whitelist_secondary_regex <-  word_whitelist_to_word_whitelist_regex(
+  whitelist_secondary
+)
 whitelist_secondary_regex <- paste0(
   "((2[.])|toise|näst)[.a-zåäö]*[ ]?", whitelist_primary_regex
 )
@@ -269,6 +301,9 @@ stopifnot(
   sub(whitelist_secondary_regex, "", "sekundääri") == ""
 )
 
+# `whitelist_scoresumword` contains roots of words associated with the scoresum.
+# note that sometimes the word "gradus" was used with the scoresum although 
+# this is the incorrect term. only A and B are grades.
 whitelist_scoresumword <- c(
   "yh",
   "pist", 
@@ -285,7 +320,11 @@ stopifnot(
   grepl(whitelist_scoresumword_regex, "pistesumma")
 )
 
-whitelist_total <- c("eli", "yht", "yhtä kuin", "pist", "sum", "total", "=", "sammanlag")
+# `whitelist_total` contains roots of expressions indicating the result of
+# addition. `whitelist_total_regex` is the list in the form of one regex.
+whitelist_total <- c(
+  "eli", "yht", "yhtä kuin", "pist", "sum", "total", "=", "sammanlag"
+)
 whitelist_total <- union(whitelist_total, whitelist_scoresumword)
 whitelist_total <- sort(union(whitelist_total, whitelist_scoresumword))
 whitelist_total_regex <- word_whitelist_to_word_whitelist_regex(
@@ -295,16 +334,34 @@ whitelist_total_regex <- word_whitelist_to_word_whitelist_regex(
 fcr_pattern_dt <- local({
   
   addition_dt <- local({
+    # `a_plus_b` defines what addition should look like.
     a_plus_b <- paste0(score_a_or_b, plus, score_a_or_b)
+    stopifnot(
+      grepl(a_plus_b, c("3 + 3", "3+5")),
+      !grepl(a_plus_b, "3 ja 3")
+    )
+    # `addition_values` defines a plethora of ways in which different additions
+    # may appear. note that it is a list of multiple regexes.
     addition_values <- c(
-      paste0(a_plus_b, optional_word_sep, optional_base_gleason_regex, whitelist_total_regex, optional_base_gleason_regex, optional_word_sep, score_c),
+      paste0(
+        a_plus_b, optional_word_sep, optional_base_gleason_regex, 
+        whitelist_total_regex, optional_base_gleason_regex, 
+        optional_word_sep, score_c
+      ),
       paste0(score_c, equals, a_plus_b),
+      # mistake here. should have been:
+      # paste0(score_c, "\\([ ]?", a_plus_b, "[ ]?\\)"),
       paste0(score_c, "[ ]?\\(", a_plus_b, "[ ]?\\)"),
-      paste0(score_c, "[ ]?\\(", score_a_or_b, ",[ ]?", score_a_or_b, "[ ]?\\)"),
+      paste0(
+        score_c, "[ ]?\\(", score_a_or_b, ",[ ]?", score_a_or_b, "[ ]?\\)"
+      ),
       paste0(a_plus_b, "[ ]?\\(", score_c, "[ ]?\\)"),
       a_plus_b
     )
     addition_values <- paste0("(", addition_values, ")")
+    stopifnot(
+      sub(addition_values[2], "", "7 = 3 + 4") == ""
+    )
     addition_dt <- data.table::data.table(
       pattern_name = c(
         "a + b = c","c = a + b","c (a + b)","c (a, b)","a + b (c)", "a + b"
@@ -323,12 +380,16 @@ fcr_pattern_dt <- local({
   keyword_dt <- local({
     
     # kw_all_a --------------------------------------------------------------
+    # `whitelist_only_one_kind` defines roots of words indicating a monograde
+    # result --- e.g. "whole sample grade 4" -> 4+4=8.
     whitelist_only_one_kind <- c(
       "yksinom", "ainoas", "pelk", "endast", "enbart"
     )
     whitelist_only_one_kind_regex <- word_whitelist_to_word_whitelist_regex(
       whitelist_only_one_kind, match_count = "+"
     )
+    # `kw_all_*` objects define the (RHS + LHS context and the value) regexes 
+    # for keyword + monograde expressions.
     kw_all_a_prefix <- paste0(
       whitelist_only_one_kind_regex,
       optional_word_sep, 
@@ -339,6 +400,7 @@ fcr_pattern_dt <- local({
     kw_all_a_suffix <- default_regex_suffix
     
     # kw_a ---------------------------------------------------------------------
+    # `kw_a_*` objects define the regexes for keyword + grade A expressions.
     kw_a_prefix <- paste0(
       whitelist_primary_regex, 
       optional_word_sep, 
@@ -350,6 +412,7 @@ fcr_pattern_dt <- local({
     kw_a_suffix <- default_regex_suffix
     
     # kw_b ---------------------------------------------------------------------
+    # `kw_b_*` objects define the regexes for keyword + grade B expressions.
     kw_b_prefix <- paste0(
       whitelist_secondary_regex, 
       word_sep, 
@@ -363,13 +426,13 @@ fcr_pattern_dt <- local({
     kw_b_suffix <- default_regex_suffix
     
     # kw_c ---------------------------------------------------------------------
-    whitelist_c_optional <- unique(c(
-      whitelist_scoreword
-    ))
+    # `kw_c_*` objects define the regexes for keyword + scoresum expressions.
     whitelist_c_optional <- paste0(
-      whitelist_c_optional, word_suffices
+      whitelist_scoreword, word_suffices
     )
     
+    # `addition_guide`: addition with letters. sometimes this appears in text to
+    # guide the reader.
     addition_guide <- "\\(?[ ]?(a|x)[ ]?[+][ ]?(b|y)[ ]?\\)?"
     stopifnot(
       sub(addition_guide, "", "(a + b)") == "",
@@ -407,6 +470,7 @@ fcr_pattern_dt <- local({
     kw_c_suffix <- default_regex_suffix
     
     # kw_t ---------------------------------------------------------------------
+    # keyword + tertiary.
     whitelist_tertiary <- c(
       "terti", paste0("((3\\.)|(kolmann)|(trädj))", whitelist_secondary)
     )
@@ -492,6 +556,9 @@ fcr_add_pattern_dt <- fcr_pattern_dt[
   ]
 
 # extraction funs ---------------------------------------------------------
+# Function `rm_false_positives` was written to remove false positive matches
+# of gleason scores in text. especially names of fields in text such as 
+# "gleason 6 or less" caused false positives.
 rm_false_positives <- function(x) {
   rm <- c(
     paste0(base_gleason_regex, "[ ]?4[ ](ja|tai|or|och|eller)[ ]5"),
@@ -504,18 +571,58 @@ rm_false_positives <- function(x) {
   x
 }
 
+# Function `prepare_text` does everything needed to prepare text for the actual
+# extraction.
 prepare_text <- function(x) {
   x <- rm_false_positives(ut$normalise_text(x))
   x <- gsub("\\([^0-9]+\\)", " ", x)
   gsub("[ ]+", " ", x)
 }
 
+#' @title Parse Gleason Value Strings
+#' @description
+#' Separate elements of the Gleason score (A, B, C, T) from strings extracted
+#' from text.
+#' @param value_strings `[character]` (mandatory, no default)
+#' 
+#' character string vector of strings extracted from text containing (only)
+#' components of the Gleason score
+#' @param match_types `[character]` (mandatory, no default)
+#' 
+#' each `value_strings` elements must have a corresponding match type;
+#' e.g. match type `"a + b = c"` is handled differently then match type
+#' `"c"`
+#' @details
+#' Function `parse_gleason_value_string_elements` works as follows:
+#' 
+#' - simple regexes are defined for different match types; e.g. for
+#'   "a + b = c", one or more for regex for a, one or more for b, 
+#'   and one or more for c; e.g. for "a" there are patterns
+#'   `c("[0-9]+[ ]?[+]", "[0-9]+")`
+#' - the patterns for each element (a, b, c) are run separately on a copy of the
+#'   string to be processed. as said above, each element can have one or more.
+#'   the first is used to extract the specified part from the original string,
+#'   and this is saved as the "current version" of the string.
+#'   the next is used to extract the specified part from the "current version"
+#'   to update it. and so on. in the end only an integer should remain.
+#' - after some basic manipulation to get a nice clean table, a table is 
+#'   returned containing the extracted a,b,c values for each string.
+#'   
+#'
+#' @return 
+#' Returns a `data.table` with columns
+#' 
+#' - `pos`: integer; order number of `value_strings`
+#' - `value_string`: character; the `value_strings`
+#' - `match_type`: character; the `match_types`
+#' - `a`: integer; grade A
+#' - `b`: integer; grade B
+#' - `c`: integer; scoresum
+#' 
 parse_gleason_value_string_elements <- function(
   value_strings,
   match_types
 ) {
-  # e.g. value_strings = c("3 + 4 = 7", "7"), match_types = c("a + b = c", "c")
-  # -> data.table(a = c(3, NA), b = c(4, NA), c = c(7, 7))
   
   elem_parsers <- list(
     t = NULL,
@@ -566,6 +673,7 @@ parse_gleason_value_string_elements <- function(
       as.integer(values)
     })
     if (any(vapply(dt, length, 1L) != length(dt[[1L]]))) {
+      # need to debug because e.g. more than one A value was extracted somewhere
       browser()
     }
     dt <- data.table::setDT(dt)
@@ -588,32 +696,61 @@ parse_gleason_value_string_elements <- function(
       match_type = character(0L), 
       a = integer(0L),
       b = integer(0L), 
-      c = integer(0L), 
-      text_id = integer(0L),
-      obs_id = integer(0L),
-      text = character(0L), 
-      src = character(0L)
+      c = integer(0L)
     ),
     parsed_dt,
     use.names = TRUE, fill = TRUE
   )
-  data.table::setkeyv(parsed_dt, c("text_id", "obs_id"))
   return(parsed_dt[])
 }
+local({
+  test <- parse_gleason_value_string_elements(
+    value_strings = c("3 + 4 = 7", "7"),
+    match_types = c("a + b = c", "c")
+  )
+  expected <- data.table::data.table(a = c(3, NA), b = c(4, NA), c = c(7, 7))
+  stopifnot(
+    all.equal(test[, c("a", "b", "c")], expected)
+  )
+})
 
+#' @title Extract Gleason Scores
+#' @description
+#' Runs the extraction itself, parses and formats results.
+#' 
+#' @param texts `[character]` (mandatory, no default)
+#' 
+#' character string vector of texts to process
+#' 
+#' @param text_ids `[integer]` (optional, default `seq_along(texts)`)
+#' 
+#' integer vector identifying each text; will be retained in output
+#' 
+#' @param format `[character]` (mandatory, default `"standard"`)
+#' 
+#' what kind of output you want; one of ` c("standard", "typed")`
+#' 
+#' @param pattern_dt `[data.table]` (mandatory, no default)
+#' 
+#' passed to `extract_context_affixed_values`
+#' 
 extract_gleason_scores <- function(
   texts, 
   text_ids = seq_along(texts),
   format = c("standard", "typed")[1L],
-  pattern_dt = pattern_dt
+  pattern_dt
 ) {
   stopifnot(
     is.character(texts),
     is.vector(texts),
     is.integer(text_ids),
     is.vector(text_ids),
+    length(texts) == length(text_ids),
+    
     length(format) == 1L,
-    format %in% c("standard", "typed")
+    format %in% c("standard", "typed"),
+    
+    data.table::is.data.table(pattern_dt)
   )
   # "typed" format produced initially and converted to "standard" if requested.
   extr_dt <- pe$extract_context_affixed_values(
@@ -662,6 +799,7 @@ extract_gleason_scores <- function(
 }
 
 # confusion funs ----------------------------------------------------------
+# these are used to summarise results, not to create the result.
 typed_value_strings <- function(match_type, a, b, c) {
   dt <- data.table::setDT(mget(names(formals(typed_value_strings))))
   dt[, "value" := NA_character_]
