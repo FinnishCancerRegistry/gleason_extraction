@@ -647,6 +647,7 @@ parse_gleason_value_string_elements <- function(
   
   stopifnot(
     is.character(value_strings),
+    !grepl("\\p{L}", value_strings, perl = TRUE),
     
     is.character(match_types),
     match_types %in% names(elem_parsers),
@@ -717,6 +718,11 @@ local({
     produced[, c("a", "b", "c")], 
     expected
   ))
+  
+  stopifnot(inherits(tryCatch(
+    parse_gleason_value_string_elements("Gleason 8 (4 + 4)", "a + b = c"),
+    error = function(e) e
+  ), "error"))
 })
 
 #' @title Extract Gleason Scores
