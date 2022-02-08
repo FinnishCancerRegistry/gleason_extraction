@@ -553,7 +553,7 @@ fcr_pattern_dt <- local({
 
 fcr_add_pattern_dt <- fcr_pattern_dt[
   grepl("a.+b", pattern_name),
-  ]
+]
 
 # extraction funs ---------------------------------------------------------
 # Function `rm_false_positives` was written to remove false positive matches
@@ -578,6 +578,26 @@ prepare_text <- function(x) {
   x <- gsub("\\([^0-9]+\\)", " ", x)
   gsub("[ ]+", " ", x)
 }
+
+# Function `clean_gleason_value_string` was written to ensure that the extracted
+# `value`string (see e.g. fcr_pattern_dt[["value"]]) only has characters
+# 0-9+=() left. Anything else is only not considered part of a proper gleason
+# value string.
+clean_gleason_value_string <- function(x) {
+  stopifnot(
+    is.character(x)
+  )
+  x <- gsub("[^ 0-9+=()]", "" , x, perl = TRUE)
+  x <- gsub("[ ]+"     , " ", x, perl = TRUE)
+  return(x)
+}
+local({
+  stopifnot(
+    clean_gleason_value_string("4 + 4 = Gleason 8") == "4 + 4 = 8",
+    clean_gleason_value_string("4 + 4 (8)") == "4 + 4 (8)"
+  )
+})
+
 
 #' @title Parse Gleason Value Strings
 #' @description
@@ -644,7 +664,6 @@ parse_gleason_value_string_elements <- function(
     b = list(b = "[0-9]+"), 
     c = list(c = "[0-9]+")
   )
-  
   stopifnot(
     is.character(value_strings),
     !grepl("\\p{L}", value_strings, perl = TRUE),
@@ -725,6 +744,7 @@ local({
   ), "error"))
 })
 
+
 #' @title Extract Gleason Scores
 #' @description
 #' Runs the extraction itself, parses and formats results.
@@ -763,6 +783,7 @@ extract_gleason_scores <- function(
     
     data.table::is.data.table(pattern_dt)
   )
+  
   # "typed" format produced initially and converted to "standard" if requested.
   extr_dt <- pe$extract_context_affixed_values(
     text = texts,
@@ -773,21 +794,22 @@ extract_gleason_scores <- function(
     i = pattern_dt,
     on = "pattern_name",
     j = "match_type" := i.match_type
-    ]
+  ]
   extr_dt[, "text_id" := ..text_ids[pos]]
   extr_dt[, "obs_id" := text_id * 100L + 1:.N, by = "text_id"]
   data.table::setkeyv(extr_dt, c("pos", "obs_id"))
+  extr_dt[, "value" := clean_gleason_value_string(extr_dt[["value"]])]
   
   parsed_dt <- parse_gleason_value_string_elements(
-    value_strings = extr_dt$value, 
-    match_types = extr_dt$match_type
+    value_strings = extr_dt[["value"]], 
+    match_types = extr_dt[["match_type"]]
   )
   parsed_dt[, "text_id" := extr_dt[["text_id"]][pos]]
   parsed_dt[, "obs_id" := extr_dt[["obs_id"]][pos]]
   
   parsed_dt <- parsed_dt[
     !(!a %in% c(2:5, NA) | !b %in% c(2:5, NA) | !c %in% c(4:10, NA))
-    ]
+  ]
   
   if (format == "standard") {
     parsed_dt[, c("text", "src") := value_string]
@@ -809,6 +831,25 @@ extract_gleason_scores <- function(
   parsed_dt[]
 }
 
+local({
+  produced <- suppressMessages(
+    extract_gleason_scores(
+      texts = c("gleason 4 + 4 = gleason 8", "gleason 8", "gleason 4 + 4"),
+      format = "standard",
+      pattern_dt = fcr_pattern_dt
+    )
+  )
+  expected <- data.table::data.table(
+    a = c(4L, NA_integer_, 4L         ), 
+    a = c(4L, NA_integer_, 4L         ), 
+    c = c(8L,          8L, NA_integer_)
+  )
+  stopifnot(all.equal(
+    expected, 
+    produced[j = .SD, .SDcols = names(expected)]
+  ))
+})
+
 # confusion funs ----------------------------------------------------------
 # these are used to summarise results, not to create the result.
 typed_value_strings <- function(match_type, a, b, c) {
@@ -821,7 +862,7 @@ typed_value_strings <- function(match_type, a, b, c) {
   dt[
     i = match_type == "a + b = c"  & !is.na(a + b + c), 
     j = "value" := paste0(a, " + ", b, " = ", c)
-    ]
+  ]
   dt[["value"]]
 }
 
@@ -936,10 +977,10 @@ match_number_dt <- function(match_list_list) {
     j = "n_matches" := data.table::fifelse(
       n_matches >= 5L, ">=5", as.character(n_matches)
     )
-    ]
+  ]
   match_number_dt <- match_number_dt[
     j = .(N = sum(N)), keyby = c("set", "n_matches")
-    ]
+  ]
   match_number_dt[, "p" := round(100L * N / sum(N)), by = "set"]
   match_number_dt[, "n_p" := paste0(N, " (", p, " %)")]
   match_number_dt <- data.table::dcast(
