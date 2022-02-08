@@ -704,14 +704,19 @@ parse_gleason_value_string_elements <- function(
   return(parsed_dt[])
 }
 local({
-  test <- parse_gleason_value_string_elements(
-    value_strings = c("3 + 4 = 7", "7"),
-    match_types = c("a + b = c", "c")
+  produced <- parse_gleason_value_string_elements(
+    value_strings = c("3 + 4 = 7", "7", "3 + 4 (7)", "7 (3 + 4)", "3 + 4"),
+    match_types   = c("a + b = c", "c", "a + b = c", "a + b = c", "a + b")
   )
-  expected <- data.table::data.table(a = c(3, NA), b = c(4, NA), c = c(7, 7))
-  stopifnot(
-    all.equal(test[, c("a", "b", "c")], expected)
+  expected <- data.table::data.table(
+    a = c(3, NA, 3, 3,  3), 
+    b = c(4, NA, 4, 4,  4), 
+    c = c(7,  7, 7, 7, NA)
   )
+  stopifnot(all.equal(
+    produced[, c("a", "b", "c")], 
+    expected
+  ))
 })
 
 #' @title Extract Gleason Scores
