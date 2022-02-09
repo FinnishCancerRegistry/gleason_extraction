@@ -575,7 +575,8 @@ rm_false_positives <- function(x) {
 # extraction.
 prepare_text <- function(x) {
   x <- rm_false_positives(ut$normalise_text(x))
-  x <- gsub("\\([^0-9]+\\)", " ", x)
+  x <- gsub("\\([^0-9]+\\)", " ", x) # e.g. "(some words here)"
+  x <- gsub("\\([ ]*[0-9]+[ ]*%[ ]*\\)", " ", x) # e.g. "(45 %)"
   gsub("[ ]+", " ", x)
 }
 
