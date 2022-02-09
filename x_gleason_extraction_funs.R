@@ -674,7 +674,6 @@ parse_gleason_value_string_elements <- function(
   )
   stopifnot(
     is.character(value_strings),
-    !grepl("\\p{L}", value_strings, perl = TRUE),
     
     is.character(match_types),
     match_types %in% names(elem_parsers),
@@ -686,7 +685,8 @@ parse_gleason_value_string_elements <- function(
   parsed_dt <- data.table::rbindlist(lapply(s, function(i) {
     
     value_string <- value_strings[i]
-    value_string <- gsub(whitelist_total_regex, "=", value_string)
+    value_string <- gsub(whitelist_total_regex, " = ", value_string)
+    value_string <- clean_gleason_value_string(value_string)
     match_type <- match_types[i]
     int_parsers <- elem_parsers[[match_type]]
     if (is.null(int_parsers)) {
@@ -733,23 +733,24 @@ parse_gleason_value_string_elements <- function(
 }
 local({
   produced <- parse_gleason_value_string_elements(
-    value_strings = c("3 + 4 = 7", "7", "3 + 4 (7)", "7 (3 + 4)", "3 + 4"),
-    match_types   = c("a + b = c", "c", "a + b = c", "a + b = c", "a + b")
+    value_strings = c(
+      "3 + 4 = 7", "7", "3 + 4 (7)", "7 (3 + 4)", "3 + 4",
+      "3 + 4 gleason score 7"
+    ),
+    match_types   = c(
+      "a + b = c", "c", "a + b = c", "a + b = c", "a + b",
+      "a + b = c"
+    )
   )
   expected <- data.table::data.table(
-    a = c(3, NA, 3, 3,  3), 
-    b = c(4, NA, 4, 4,  4), 
-    c = c(7,  7, 7, 7, NA)
+    a = c(3, NA, 3, 3,  3, 3), 
+    b = c(4, NA, 4, 4,  4, 4), 
+    c = c(7,  7, 7, 7, NA, 7)
   )
   stopifnot(all.equal(
     produced[, c("a", "b", "c")], 
     expected
   ))
-  
-  stopifnot(inherits(tryCatch(
-    parse_gleason_value_string_elements("Gleason 8 (4 + 4)", "a + b = c"),
-    error = function(e) e
-  ), "error"))
 })
 
 
@@ -806,7 +807,6 @@ extract_gleason_scores <- function(
   extr_dt[, "text_id" := ..text_ids[pos]]
   extr_dt[, "obs_id" := text_id * 100L + 1:.N, by = "text_id"]
   data.table::setkeyv(extr_dt, c("pos", "obs_id"))
-  extr_dt[, "value" := clean_gleason_value_string(extr_dt[["value"]])]
   
   parsed_dt <- parse_gleason_value_string_elements(
     value_strings = extr_dt[["value"]], 
