@@ -645,6 +645,13 @@ parse_gleason_value_string_elements <- function(
   match_types
 ) {
   
+  c_parse_options <- c(
+    "=[ ]?[0-9]+", # e.g. 3+4=7
+    "^[^0-9]*[0-9]+[ ]?[=(]", # e.g. 7=3+4, 7 (3+4)
+    "[(][ ]*[0-9]+[ ]*[)]" # e.g. 3+4 (7)
+  )
+  c_parse_step_1 <- paste0("(", c_parse_options, ")", collapse = "|")
+  
   elem_parsers <- list(
     t = NULL,
     kw_all_a = list(
@@ -654,7 +661,7 @@ parse_gleason_value_string_elements <- function(
     `a + b = c` = list(
       a = c("[0-9]+[ ]?[+]", "[0-9]+"), 
       b = c("[+][ ]?[0-9]+", "[0-9]+"),
-      c = c("(=[ ]?[0-9]+)|(^[0-9]+[ ]?[=(])|([(][ ]*[0-9]+[ ]*[)])", "[0-9]+")
+      c = c(c_parse_step_1, "[0-9]+")
     ),
     `a + b` = list(
       a = c("[0-9]+[ ]?[+]", "[0-9]+"), 
