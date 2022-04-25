@@ -245,12 +245,20 @@ extract_all_key_value_pairs <- function(
 extract_context_affixed_values <- function(
   text,
   pattern_dt,
-  mask_length = 53L,
+  mask = NULL,
   verbose = TRUE
 ) {
   t_start <- proc.time()
   requireNamespace("data.table")
   requireNamespace("stringr")
+  if (is.null(mask)) {
+    mask <- paste0(
+      paste0(rep("_", 20L), collapse = ""),
+      "%PATTERN_NAME%:%ORDER%",
+      paste0(rep("_", 20L), collapse = "")
+    )
+  }
+  
   stopifnot(
     is.character(text),
     
@@ -258,8 +266,9 @@ extract_context_affixed_values <- function(
     c("pattern_name", "prefix", "value", "suffix") %in% names(pattern_dt),
     !"id" %in% pattern_dt[["pattern_name"]],
     
-    is.integer(mask_length), length(mask_length) == 1L,
-    mask_length >= 5L, (mask_length - 3L) %% 2L == 0L,
+    is.character(mask),
+    length(mask) == 1L,
+    grepl("%ORDER%", mask),
     
     is.logical(verbose), length(verbose) == 1L, verbose %in% c(TRUE, FALSE)
   )
@@ -268,7 +277,6 @@ extract_context_affixed_values <- function(
   if (verbose) {
     message("* extract_context_affixed_values: starting processing text elems")
   }
-  mask_buffer <- paste0(rep("%", (mask_length - 3L) / 2L), collapse = "")
   
   extr_dt <- data.table::rbindlist(lapply(seq_along(text), function(i) {
     text_elem <- text[i]
@@ -304,8 +312,17 @@ extract_context_affixed_values <- function(
                " which is not supported")
         }
         mask_num <- formatC(length(extracted), digits = 2L, flag = "0")
-        mask <- paste0("_", mask_buffer, mask_num, mask_buffer, "_")
-        text_elem <- sub(pattern, mask, text_elem, perl = TRUE)
+        new_mask <- gsub(
+          "%ORDER%", 
+          paste0("%ORDER=", mask_num, "%"), 
+          mask
+        )
+        new_mask <- gsub(
+          "%PATTERN_NAME%", 
+          paste0("%PATTERN_NAME=", pattern_name, "%"), 
+          new_mask
+        )
+        text_elem <- sub(pattern, new_mask, text_elem, perl = TRUE)
       }
     }
     
@@ -314,9 +331,9 @@ extract_context_affixed_values <- function(
     } else {
       match_order <- stringr::str_extract_all(
         text_elem,
-        paste0("\\Q", mask_buffer, "\\E", "[0-9]{3}", "\\Q", mask_buffer, "\\E")
+        "%ORDER=[0-9]+%"
       )[[1L]]
-      match_order <- as.integer(gsub("%", "", match_order, fixed = TRUE))
+      match_order <- as.integer(stringr::str_extract(match_order, "[0-9]+"))
     }
     
     dt <- data.table::setDT(list(
