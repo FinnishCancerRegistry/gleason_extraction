@@ -305,6 +305,9 @@ extract_context_affixed_values <- function(
         newly_extracted <- sub(
           paste0(suffix, "$"), "", newly_extracted, perl = TRUE
         )
+        newly_extracted <- stringr::str_extract(
+          newly_extracted, pattern_dt[["value"]][j]
+        )
         extracted <- c(extracted, newly_extracted)
         pattern_names <- c(pattern_names, pattern_name)
         if (length(extracted) > 999L) {
