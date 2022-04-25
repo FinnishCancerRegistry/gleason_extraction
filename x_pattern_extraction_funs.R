@@ -326,22 +326,20 @@ extract_context_affixed_values <- function(
       }
     }
     
-    if (length(extracted) == 0L) {
-      match_order <- 0L
-    } else {
-      match_order <- stringr::str_extract_all(
-        text_elem,
-        "%ORDER=[0-9]+%"
-      )[[1L]]
-      match_order <- as.integer(stringr::str_extract(match_order, "[0-9]+"))
-    }
-    
     dt <- data.table::setDT(list(
       pos = rep(i, length(extracted)),
       pattern_name = pattern_names,
       value = extracted
     ))
-    dt[match_order, ]
+    if (nrow(dt) > 0L) {
+      match_order <- stringr::str_extract_all(
+        text_elem,
+        "%ORDER=[0-9]+%"
+      )[[1L]]
+      match_order <- as.integer(stringr::str_extract(match_order, "[0-9]+"))
+      dt <- dt[match_order, ]
+    }
+    dt[]
   }))
   
   if (verbose) {
