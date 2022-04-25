@@ -637,14 +637,14 @@ prepare_text <- function(x) {
 
 # Function `clean_gleason_value_string` was written to ensure that the extracted
 # `value`string (see e.g. fcr_pattern_dt[["value"]]) only has characters
-# 0-9+=() left. Anything else is only not considered part of a proper gleason
+# 0-9+=() left. Anything else is not considered part of a proper gleason
 # value string.
 clean_gleason_value_string <- function(x) {
   stopifnot(
     is.character(x)
   )
   x <- gsub("[^ 0-9+=()]", "" , x, perl = TRUE)
-  x <- gsub("[ ]+"     , " ", x, perl = TRUE)
+  x <- gsub("[ ]+"       , " ", x, perl = TRUE)
   return(x)
 }
 local({
