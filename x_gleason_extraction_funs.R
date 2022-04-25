@@ -340,6 +340,25 @@ fcr_pattern_dt <- local({
       grepl(a_plus_b, c("3 + 3", "3+5")),
       !grepl(a_plus_b, "3 ja 3")
     )
+    # `a_plus_b` defines regex for capturing e.g. "3, 4" in "gleason 7 (3,4)".
+    a_comma_b <- paste0(score_a_or_b, ",[ ]?", score_a_or_b)
+    stopifnot(
+      grepl(a_comma_b, c("gleason 7 (3,4)"))
+    )
+    # `a_plus_b_plus_t` defines what addition with tertiary value should look 
+    # like.
+    a_plus_b_plus_t <- paste0(
+      a_plus_b, "[ (+]*", score_a_or_b, "[ )]*"
+    )
+    stopifnot(
+      grepl(a_plus_b_plus_t, c("3 + 3 + 3", "3+5(+4)"))
+    )
+    # `a_comma_b_comma_t` is `a_comma_b` with additional tertiary score.
+    a_comma_b_comma_t <- paste0(a_comma_b, ",[ ]?", score_a_or_b)
+    stopifnot(
+      grepl(a_comma_b_comma_t, "gleason 7 (3,4,4)")
+    )
+    
     # `addition_values` defines a plethora of ways in which different additions
     # may appear. note that it is a list of multiple regexes.
     addition_values <- c(
@@ -353,7 +372,7 @@ fcr_pattern_dt <- local({
       # paste0(score_c, "\\([ ]?", a_plus_b, "[ ]?\\)"),
       paste0(score_c, "[ ]?\\(", a_plus_b, "[ ]?\\)"),
       paste0(
-        score_c, "[ ]?\\(", score_a_or_b, ",[ ]?", score_a_or_b, "[ ]?\\)"
+        score_c, "[ ]?\\(", a_comma_b, "[ ]?\\)"
       ),
       paste0(a_plus_b, "[ ]?\\(", score_c, "[ ]?\\)"),
       a_plus_b
@@ -373,6 +392,42 @@ fcr_pattern_dt <- local({
       ),
       value = addition_values,
       suffix = default_regex_suffix
+    )
+    
+    # capture also tertiary scores.
+    abt_dt <- data.table::copy(addition_dt)
+    abt_dt[, "value" := gsub(a_plus_b, a_plus_b_plus_t, abt_dt[["value"]], 
+                             fixed = TRUE)]
+    abt_dt[, "value" := gsub(a_comma_b, a_comma_b_comma_t, abt_dt[["value"]], 
+                             fixed = TRUE)]
+    abt_dt[
+      j = "pattern_name" := gsub(
+        "a + b", 
+        "a + b + t", 
+        abt_dt[["pattern_name"]], 
+        fixed = TRUE
+      )
+    ]
+    abt_dt[
+      j = "pattern_name" := gsub(
+        "a, b", 
+        "a, b, t", 
+        abt_dt[["pattern_name"]], 
+        fixed = TRUE
+      )
+    ]    
+    abt_dt[
+      j = "match_type" := gsub(
+        "a + b",
+        "a + b + t",
+        abt_dt[["match_type"]], 
+        fixed = TRUE
+      )
+    ]
+    
+    addition_dt <- rbind(addition_dt, abt_dt)
+    stopifnot(
+      !duplicated(addition_dt[["pattern_name"]])
     )
     addition_dt[]
   })
