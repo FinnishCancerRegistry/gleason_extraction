@@ -206,13 +206,29 @@ extract_all_key_value_pairs <- function(
 #' - `prefix`: context prefix for value
 #' - `value`: the value itself
 #' - `suffix`: context suffix for value
-#' @param mask_length `[integer]` (mandatory, default `53L`)
+#' @param mask `[NULL, character]` (default `NULL`)
 #' 
-#' each time a match is found in an element of `text`, the match is replaced
-#' by a mask to avoid matching the same thing multiple times; the mask looks
-#' like e.g. `"%%%001%%%"` for the first match with `mask_length = 9L`;
-#' `mask_length` must be larger than or equal to 5, and preferably something
-#' like 53 for safety; additionally, `mask_length - 3L` must be divisible by 2
+#' Each time a match is found in an element of `text`, the match is replaced
+#' by a mask to avoid matching the same thing multiple times. You may
+#' define what the the mask looks like with this argument.
+#' 
+#' `NULL`: use this:
+#' ```r
+#' paste0(
+#'   paste0(rep("_", 20L), collapse = ""),
+#'   "%PATTERN_NAME%:%ORDER%",
+#'   paste0(rep("_", 20L), collapse = "")
+#' )
+#' ```
+#' 
+#' `character`: use custom mask. The mask must contain the substring
+#' `"%ORDER%"` --- this is used to know the order of the extracted items 
+#' as they appear in text.
+#' @param n_max_tries_per_pattern `[integer]` (default `100L`)
+#' How many times to attempt extraction using each individual pattern?
+#' You can e.g. set this to `1L` to only extract the first match in text
+#' for each given pattern.
+#' 
 #' @param verbose `[logical]` (mandatory, default `TRUE`)
 #' 
 #' if `TRUE`, this function explains what it is doing at each phase
@@ -246,6 +262,7 @@ extract_context_affixed_values <- function(
   text,
   pattern_dt,
   mask = NULL,
+  n_max_tries_per_pattern = 100L,
   verbose = TRUE
 ) {
   t_start <- proc.time()
@@ -289,12 +306,16 @@ extract_context_affixed_values <- function(
       return(dt)
     }
     extracted <- pattern_names <- character(0L)
+    order_in_text <- integer(0L)
     for (j in 1:nrow(pattern_dt)) {
       pattern_name <- pattern_dt[["pattern_name"]][j]
       prefix <- pattern_dt[["prefix"]][j]
       suffix <- pattern_dt[["suffix"]][j]
       pattern <- full_patterns[j]
-      while (stringr::str_detect(text_elem, pattern)) {
+      n_tries <- 0L
+      while (n_tries < n_max_tries_per_pattern && 
+             stringr::str_detect(text_elem, pattern)) {
+        n_tries <- n_tries + 1L
         if (grepl("^inspect this", text_elem)) {
           browser()
         }
@@ -310,10 +331,6 @@ extract_context_affixed_values <- function(
         )
         extracted <- c(extracted, newly_extracted)
         pattern_names <- c(pattern_names, pattern_name)
-        if (length(extracted) > 999L) {
-          stop("Looks like you had at least 1000 matches in string, ", i, 
-               " which is not supported")
-        }
         mask_num <- formatC(length(extracted), digits = 2L, flag = "0")
         new_mask <- gsub(
           "%ORDER%", 
@@ -335,12 +352,12 @@ extract_context_affixed_values <- function(
       value = extracted
     ))
     if (nrow(dt) > 0L) {
-      match_order <- stringr::str_extract_all(
+      order_in_text <- stringr::str_extract_all(
         text_elem,
         "%ORDER=[0-9]+%"
       )[[1L]]
-      match_order <- as.integer(stringr::str_extract(match_order, "[0-9]+"))
-      dt <- dt[match_order, ]
+      order_in_text <- as.integer(stringr::str_extract(order_in_text, "[0-9]+"))
+      dt <- dt[order_in_text, ]
     }
     dt[]
   }))
@@ -454,7 +471,21 @@ suppressMessages(local({
     result_dt$value[result_dt$pos == 5L] == c("5", "8")
   )
   
-  
+  # UNIT TEST: extract_context_affixed_values: n_max_tries_per_pattern
+  observed <- extract_context_affixed_values(
+    text = "1 2 3 4 5 6", 
+    pattern_dt = data.table::data.table(
+      pattern_name = "digit", 
+      prefix = "(^|[ ])",
+      value = "[0-9]",
+      suffix = ""
+    ),
+    n_max_tries_per_pattern = 1L,
+    verbose = FALSE
+  )
+  stopifnot(
+    identical(observed[["value"]], "1")
+  )
 }))
 
 
