@@ -815,20 +815,24 @@ local({
   produced <- parse_gleason_value_string_elements(
     value_strings = c(
       "3 + 4 = 7", "7", "3 + 4 (7)", "7 (3 + 4)", "3 + 4",
-      "3 + 4 gleason score 7"
+      "3 + 4 gleason score 7",
+      "3 + 4 (+5) = 7"
     ),
     match_types   = c(
       "a + b = c", "c", "a + b = c", "a + b = c", "a + b",
-      "a + b = c"
+      "a + b = c",
+      "a + b + t = c"
     )
   )
   expected <- data.table::data.table(
-    a = c(3, NA, 3, 3,  3, 3), 
-    b = c(4, NA, 4, 4,  4, 4), 
-    c = c(7,  7, 7, 7, NA, 7)
+    pos = 1:7,
+    a = c(3, NA, 3, 3,  3, 3, 3), 
+    b = c(4, NA, 4, 4,  4, 4, 4), 
+    c = c(7,  7, 7, 7, NA, 7, 7),
+    key = "pos"
   )
   stopifnot(all.equal(
-    produced[, c("a", "b", "c")], 
+    produced[, .SD, .SDcols = names(expected)], 
     expected
   ))
 })
@@ -922,15 +926,17 @@ extract_gleason_scores <- function(
 local({
   produced <- suppressMessages(
     extract_gleason_scores(
-      texts = c("gleason 4 + 4 = gleason 8", "gleason 8", "gleason 4 + 4"),
+      texts = c("gleason 4 + 4 = gleason 8", "gleason 8", "gleason 4 + 4",
+                "gleason 3 + 4 + 5 = 7", "gleason 3 + 4 (+ 5) = 7",
+                "gleason 3 + 4 + 5", "gleason 3 + 4 (+ 5)"),
       format = "standard",
       pattern_dt = fcr_pattern_dt
     )
   )
   expected <- data.table::data.table(
-    a = c(4L, NA_integer_, 4L         ), 
-    a = c(4L, NA_integer_, 4L         ), 
-    c = c(8L,          8L, NA_integer_)
+    a = c(4L,NA,4L, 3L,3L, 3L,3L), 
+    b = c(4L,NA,4L, 4L,4L, 4L,4L), 
+    c = c(8L,8L,NA, 7L,7L, NA,NA)
   )
   stopifnot(all.equal(
     expected, 
