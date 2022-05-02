@@ -84,18 +84,24 @@ local({
 
 
 
+
 bootstrap <- function(
   x,
-  statistics_fun = function(x, i) {
-    mean(x[i])
-  },
-  statistics_id_dt = data.table::data.table(statistic = "mean"),
+  statistics_fun,
+  statistics_id_dt,
   n_bootstrap_samples = 1e3L,
   n_threads = 4L,
   verbose = TRUE
 ) {
   requireNamespace("boot")
   requireNamespace("data.table")
+  stopifnot(
+    is.function(statistics_fun),
+    c("x", "i") %in% names(formals(statistics_fun)),
+    
+    data.table::is.data.table(statistics_id_dt),
+    "statistic" %in% names(statistics_id_dt)
+  )
   
   if (verbose) {
     message("* bootstrap: bootstrapping...")
@@ -109,8 +115,12 @@ bootstrap <- function(
     stype = "i",
     ncpus = n_threads
   )
-  
   ci <- lapply(seq_along(b[["t0"]]), function(i) {
+    if (is.na(b[["t0"]][i])) {
+      print(b[["t0"]])
+      stop("b[[\"t0\"]][", i, "] = ", deparse(b[["t0"]][i]), "; ",
+           "NA not allowed. printed b[[\"t0\"]] above.")
+    }
     utils::tail(as.vector(
       boot::boot.ci(boot.out = b, index = i, type = "perc")[["percent"]]
     ), 2L)
