@@ -755,78 +755,46 @@ parse_gleason_value_string_elements <- function(
   match_types
 ) {
   
-  c_parse_options <- c(
-    "=[ ]?[0-9]+", # e.g. 3+4=7
-    "^[^0-9]*[0-9]+[ ]?[=(]", # e.g. 7=3+4, 7 (3+4)
-    "[(][ ]*[0-9]+[ ]*[)]" # e.g. 3+4 (7)
-  )
-  c_parse_step_1 <- paste0("(", c_parse_options, ")", collapse = "|")
+  pattern_dt_list <- component_parsing_pattern_dt_by_match_type()
   
-  elem_parsers <- list(
-    t = NULL,
-    kw_all_a = list(
-      a = "[0-9]+",
-      b = "[0-9]+"
-    ),
-    `a + b = c` = list(
-      a = c("[0-9]+[ ]?[+]", "[0-9]+"), 
-      b = c("[+][ ]?[0-9]+", "[0-9]+"),
-      c = c(c_parse_step_1, "[0-9]+")
-    ),
-    `a + b` = list(
-      a = c("[0-9]+[ ]?[+]", "[0-9]+"), 
-      b = c("[+][ ]?[0-9]+", "[0-9]+")
-    ),
-    `a...c` = list(a = "[0-9]+", c = "[0-9]+"),
-    a = list(a = "[0-9]+"), 
-    b = list(b = "[0-9]+"), 
-    c = list(c = "[0-9]+")
-  )
   stopifnot(
     is.character(value_strings),
     
     is.character(match_types),
-    match_types %in% names(elem_parsers),
+    match_types %in% names(pattern_dt_list),
     
     length(value_strings) == length(match_types)
   )
   
-  s <- seq_along(value_strings)
-  parsed_dt <- data.table::rbindlist(lapply(s, function(i) {
-    
-    value_string <- value_strings[i]
-    value_string <- gsub(whitelist_total_regex, " = ", value_string)
-    value_string <- clean_gleason_value_string(value_string)
-    match_type <- match_types[i]
-    int_parsers <- elem_parsers[[match_type]]
-    if (is.null(int_parsers)) {
+  match_type_set <- intersect(names(pattern_dt_list), match_types)
+  parsed_dts <- lapply(match_type_set, function(match_type) {
+    idx <- which(match_types == match_type)
+    if (length(idx) == 0L) {
       return(NULL)
     }
-    dt <- lapply(seq_along(int_parsers), function(j) {
-      patterns <- int_parsers[[j]]
-      values <- value_string
-      for (pattern in patterns) {
-        values <- unlist(stringr::str_extract_all(values, pattern))
-      }
-      as.integer(values)
-    })
-    if (any(vapply(dt, length, 1L) != length(dt[[1L]]))) {
-      # need to debug because e.g. more than one A value was extracted somewhere
-      browser()
-    }
-    dt <- data.table::setDT(dt)
-    data.table::setnames(dt, names(int_parsers))
-    
-    cbind(
-      data.table::data.table(
-        pos = rep(i, nrow(dt)),
-        value_string = rep(value_string, nrow(dt)),
-        match_type = rep(match_type, nrow(dt))
-      ),
-      dt
+    dt <- pe$extract_context_affixed_values(
+      text = value_strings[idx],
+      pattern_dt = pattern_dt_list[[match_type]], 
+      verbose = FALSE, 
+      n_max_tries_per_pattern = 1L
     )
-  }), use.names = TRUE, fill = TRUE)
+    if (nrow(dt) == 0L) {
+      return(NULL)
+    }
+    dt <- data.table::dcast(dt, pos ~ pattern_name)
+    dt[, "match_type" := match_type]
+    dt[, "pos" := idx[dt[["pos"]]]]
+    return(dt[])
+  })
+  parsed_dt <- data.table::rbindlist(parsed_dts, use.names = TRUE, fill = TRUE)
+  value_col_nms <- intersect(c("a", "b", "t", "c"), names(parsed_dt))
+  parsed_dt[
+    j = (value_col_nms) := lapply(.SD, as.integer),
+    .SDcols = value_col_nms
+  ]
+  parsed_dt[, "value_string" := value_strings[parsed_dt[["pos"]]]]
   
+  # to enforce order (and existence) of columns
   parsed_dt <- rbind(
     data.table::data.table(
       pos = integer(0L), 
@@ -834,11 +802,13 @@ parse_gleason_value_string_elements <- function(
       match_type = character(0L), 
       a = integer(0L),
       b = integer(0L), 
+      t = integer(0L),
       c = integer(0L)
     ),
     parsed_dt,
     use.names = TRUE, fill = TRUE
   )
+  data.table::setkeyv(parsed_dt, "pos")
   return(parsed_dt[])
 }
 local({
