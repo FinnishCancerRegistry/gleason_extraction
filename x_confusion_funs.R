@@ -96,6 +96,7 @@ confusion_statistics <- function(
   n_false <- n_false_positive + n_false_negative
   
   sensitivity <- n_true_positive / (n_true_positive + n_false_negative)
+  recall <- sensitivity
   specificity <- n_true_negative / (n_true_negative + n_false_positive)
   if ((n_true_negative + n_false_positive) == 0L) {
     specificity <- 1.00
@@ -104,13 +105,21 @@ confusion_statistics <- function(
     2L * n_true_positive + n_false_positive + n_false_negative
   )
   accuracy <- (n_true_positive + n_true_negative) / (n_positive + n_negative)
+  precision <- n_true_positive / (n_true_positive + n_false_positive)
   
   out_var_nms <- c(
-    "sensitivity", "specificity", "accuracy", "F1",
+    "sensitivity", "precision", "specificity", "accuracy", "F1",
     "n_true_positive", "n_false_positive", "n_positive", "n_true",
     "n_true_negative", "n_false_negative", "n_negative", "n_false"
   )
-  return(unlist(mget(out_var_nms)))
+  out <- unlist(mget(out_var_nms))
+  is_na <- is.na(out)
+  if (any(is_na)) {
+    message("NA values in output: ",
+            deparse(round(out[is.na], 4)))
+    browser()
+  }
+  return(out)
 }
 
 
