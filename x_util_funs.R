@@ -169,11 +169,16 @@ bootstrap <- function(
 
 
 check_match_types <- function(match_types) {
-  # stopifnot(
-  #   inherits(match_types, c("character", "factor"))
-  #   ,
-  #   match_types %in% c("a", "b", "c", "a + b", "a + b = c", "kw_all_a", NA_character_)
-  # )
+  expected_match_types <- c(
+    "a + b + t = c", "a + b + t", 
+    "a + b = c", "a + b", 
+    "c", "t",  "b", "a", 
+    "kw_all_a"
+  )
+  stopifnot(
+    inherits(match_types, c("character", "factor")),
+    match_types %in% expected_match_types
+  )
 }
 
 check_gleason_a_values <- check_gleason_b_values <- function(values) {
