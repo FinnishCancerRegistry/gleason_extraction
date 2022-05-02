@@ -425,7 +425,7 @@ fcr_pattern_dt <- local({
       )
     ]
     
-    addition_dt <- rbind(addition_dt, abt_dt)
+    addition_dt <- rbind(abt_dt, addition_dt)
     stopifnot(
       !duplicated(addition_dt[["pattern_name"]])
     )
