@@ -654,6 +654,61 @@ local({
   )
 })
 
+component_parsing_pattern_dt_by_match_type <- function() {
+  re_abt <- "[2-5]"
+  re_c <- "([6-9]|10)"
+  abtc_dt <- data.table::data.table(
+    pattern_name = c(
+      "a",
+      "b",
+      "t",
+      "c"
+    ),
+    prefix = c(
+      "(^|[^0-9_])", 
+      "_", # because it is preceded by mask from extracting A
+      "_", # because it is preceded by mask from extracting B
+      ""   # C is the only remaining number anyway
+    ),
+    value = c(
+      re_abt,
+      re_abt,
+      re_abt,
+      re_c
+    ),
+    suffix = c(
+      "[+, ]+",
+      "[+, (]*", # e.g. "a + b (+t) = c"
+      "",
+      ""
+    )
+  )
+  abc_dt <- abtc_dt[abtc_dt[["pattern_name"]] %in% c("a", "b", "c"), ]
+  abt_dt <- abtc_dt[abtc_dt[["pattern_name"]] %in% c("a", "b", "t"), ]
+  ab_dt <- abtc_dt[abtc_dt[["pattern_name"]] %in% c("a", "b"), ]
+  ac_dt <- abtc_dt[abtc_dt[["pattern_name"]] %in% c("a", "c"), ]
+  a_dt <- abtc_dt[abtc_dt[["pattern_name"]] == "a", ]
+  a_dt[, c("prefix", "suffix") := ""]
+  b_dt <- data.table::copy(a_dt)
+  b_dt[, "pattern_name" := "b"]
+  t_dt <- data.table::copy(a_dt)
+  t_dt[, "pattern_name" := "t"]
+  c_dt <- data.table::copy(a_dt)
+  c_dt[, "value" := re_c]
+  c_dt[, "pattern_name" := "c"]
+  list(
+    "kw_all_a" = ab_dt[],
+    "a + b + t = c" = abtc_dt[],
+    "a + b + t" = abt_dt[],
+    "a + b = c" = abc_dt[],
+    "a + b" = ab_dt[],
+    "a...c" = ac_dt[],
+    "a" = a_dt[],
+    "b" = b_dt[],
+    "c" = c_dt[],
+    "t" = t_dt[]
+  )
+}
 
 #' @title Parse Gleason Value Strings
 #' @description
