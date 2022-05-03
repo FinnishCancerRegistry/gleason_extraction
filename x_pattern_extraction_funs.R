@@ -290,7 +290,11 @@ extract_context_affixed_values <- function(
     is.logical(verbose), length(verbose) == 1L, verbose %in% c(TRUE, FALSE)
   )
   
-  full_patterns <- pattern_dt[, paste0(prefix, value, suffix)]
+  full_patterns <- pattern_dt[
+    j = paste0("(?<prefix>", prefix, ")",
+               "(?<value>", value, ")",
+               "(?<suffix>", suffix, ")")
+  ]
   if (verbose) {
     message("* extract_context_affixed_values: starting processing text elems")
   }
@@ -309,26 +313,12 @@ extract_context_affixed_values <- function(
     order_in_text <- integer(0L)
     for (j in 1:nrow(pattern_dt)) {
       pattern_name <- pattern_dt[["pattern_name"]][j]
-      prefix <- pattern_dt[["prefix"]][j]
-      suffix <- pattern_dt[["suffix"]][j]
       pattern <- full_patterns[j]
       n_tries <- 0L
       while (n_tries < n_max_tries_per_pattern && 
              stringr::str_detect(text_elem, pattern)) {
         n_tries <- n_tries + 1L
-        if (grepl("^inspect this", text_elem)) {
-          browser()
-        }
-        newly_extracted <- stringr::str_extract(text_elem, pattern)
-        newly_extracted <- sub(
-          paste0("^", prefix), "", newly_extracted, perl = TRUE
-        )
-        newly_extracted <- sub(
-          paste0(suffix, "$"), "", newly_extracted, perl = TRUE
-        )
-        newly_extracted <- stringr::str_extract(
-          newly_extracted, pattern_dt[["value"]][j]
-        )
+        newly_extracted <- stringr::str_match(text_elem, pattern)[1L, "value"]
         extracted <- c(extracted, newly_extracted)
         pattern_names <- c(pattern_names, pattern_name)
         mask_num <- formatC(length(extracted), digits = 2L, flag = "0")
@@ -342,6 +332,9 @@ extract_context_affixed_values <- function(
           paste0("%PATTERN_NAME=", pattern_name, "%"), 
           new_mask
         )
+        if (grepl("^inspect this", text_elem)) {
+          browser()
+        }
         text_elem <- sub(pattern, new_mask, text_elem, perl = TRUE)
       }
     }
