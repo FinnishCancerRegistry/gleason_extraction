@@ -654,41 +654,29 @@ local({
   )
 })
 
-component_parsing_pattern_dt_by_match_type <- function() {
+component_parsing_instructions_by_match_type <- function() {
   re_abt <- "[2-5]"
   re_c <- "([6-9]|10)"
+  re_plus <- "[^0-9+,]*[+,][^0-9+,]*"
+  re_mask <- "_"
   abtc_dt <- data.table::data.table(
-    pattern_name = c(
-      "a",
-      "b",
-      "t",
-      "c"
-    ),
-    prefix = c(
-      "(^|[^0-9_])", 
-      "_", # because it is preceded by mask from extracting A
-      "_", # because it is preceded by mask from extracting B
-      ""   # C is the only remaining number anyway
-    ),
-    value = c(
-      re_abt,
-      re_abt,
-      re_abt,
-      re_c
-    ),
-    suffix = c(
-      "[+, ]+",
-      "[+, (]*", # e.g. "a + b (+t) = c"
-      "",
-      ""
-    )
+    pattern_name = c("a","b","t","c"),
+    prefix = c("", re_mask, re_mask, ""),
+    value  = c(re_abt, re_abt, re_abt, re_c),
+    suffix = c(re_plus, re_plus, "", "")
   )
   abc_dt <- abtc_dt[abtc_dt[["pattern_name"]] %in% c("a", "b", "c"), ]
+  abc_dt[abc_dt[["pattern_name"]] == "b", "suffix" := ""]
   abt_dt <- abtc_dt[abtc_dt[["pattern_name"]] %in% c("a", "b", "t"), ]
-  ab_dt <- abtc_dt[abtc_dt[["pattern_name"]] %in% c("a", "b"), ]
-  ac_dt <- abtc_dt[abtc_dt[["pattern_name"]] %in% c("a", "c"), ]
-  a_dt <- abtc_dt[abtc_dt[["pattern_name"]] == "a", ]
-  a_dt[, c("prefix", "suffix") := ""]
+  ab_dt <- abc_dt[abc_dt[["pattern_name"]] %in% c("a", "b"), ]
+  ac_dt <- abc_dt[abc_dt[["pattern_name"]] %in% c("a", "c"), ]
+  a_dt <- data.table::data.table(
+    pattern_name = "a",
+    prefix = "",
+    value = re_abt,
+    # to avoid e.g. %ORDER=001%; see extract_context_affixed_values
+    suffix = "(($)|([^%0-9]))" 
+  )
   b_dt <- data.table::copy(a_dt)
   b_dt[, "pattern_name" := "b"]
   t_dt <- data.table::copy(a_dt)
@@ -697,16 +685,16 @@ component_parsing_pattern_dt_by_match_type <- function() {
   c_dt[, "value" := re_c]
   c_dt[, "pattern_name" := "c"]
   list(
-    "kw_all_a" = ab_dt[],
-    "a + b + t = c" = abtc_dt[],
-    "a + b + t" = abt_dt[],
-    "a + b = c" = abc_dt[],
-    "a + b" = ab_dt[],
-    "a...c" = ac_dt[],
-    "a" = a_dt[],
-    "b" = b_dt[],
-    "c" = c_dt[],
-    "t" = t_dt[]
+    "kw_all_a" = list(pattern_dt = ab_dt[], n_max_tries_per_pattern = 1L),
+    "a + b + t = c" = list(pattern_dt = abtc_dt[], n_max_tries_per_pattern = 1L),
+    "a + b + t" = list(pattern_dt = abt_dt[], n_max_tries_per_pattern = 1L),
+    "a + b = c" = list(pattern_dt = abc_dt[], n_max_tries_per_pattern = 1L),
+    "a + b" = list(pattern_dt = ab_dt[], n_max_tries_per_pattern = 1L),
+    "a...c" = list(pattern_dt = ac_dt[], n_max_tries_per_pattern = 1L),
+    "a" = list(pattern_dt = a_dt[], n_max_tries_per_pattern = 10L),
+    "b" = list(pattern_dt = b_dt[], n_max_tries_per_pattern = 10L),
+    "c" = list(pattern_dt = c_dt[], n_max_tries_per_pattern = 10L),
+    "t" = list(pattern_dt = t_dt[], n_max_tries_per_pattern = 10L)
   )
 }
 
@@ -755,33 +743,40 @@ parse_gleason_value_string_elements <- function(
   match_types
 ) {
   
-  pattern_dt_list <- component_parsing_pattern_dt_by_match_type()
+  instructions_by_match_type <- component_parsing_instructions_by_match_type()
   
   stopifnot(
     is.character(value_strings),
     
     is.character(match_types),
-    match_types %in% names(pattern_dt_list),
+    match_types %in% names(instructions_by_match_type),
     
     length(value_strings) == length(match_types)
   )
   
-  match_type_set <- intersect(names(pattern_dt_list), match_types)
+  match_type_set <- intersect(names(instructions_by_match_type), match_types)
   parsed_dts <- lapply(match_type_set, function(match_type) {
     idx <- which(match_types == match_type)
     if (length(idx) == 0L) {
       return(NULL)
     }
+    instructions <- instructions_by_match_type[[match_type]]
     dt <- pe$extract_context_affixed_values(
       text = value_strings[idx],
-      pattern_dt = pattern_dt_list[[match_type]], 
+      pattern_dt = instructions[["pattern_dt"]], 
       verbose = FALSE, 
-      n_max_tries_per_pattern = 1L
+      n_max_tries_per_pattern = instructions[["n_max_tries_per_pattern"]]
     )
     if (nrow(dt) == 0L) {
       return(NULL)
     }
-    dt <- data.table::dcast(dt, pos ~ pattern_name)
+    # e.g. at this point 
+    # data.table::data.table(pos = 8L, pattern_name = "a", value = c(5L, 4L))
+    # needs to be turned into a wide table. cannot cast without distinguishin
+    # multiple values with the same "pos" and "pattern_name".
+    dt[, "duplicate_id" := 1:.N, by = c("pos", "pattern_name")]
+    dt <- data.table::dcast(dt, pos + duplicate_id ~ pattern_name)
+    dt[, "duplicate_id" := NULL]
     dt[, "match_type" := match_type]
     dt[, "pos" := idx[dt[["pos"]]]]
     return(dt[])
@@ -816,19 +811,21 @@ local({
     value_strings = c(
       "3 + 4 = 7", "7", "3 + 4 (7)", "7 (3 + 4)", "3 + 4",
       "3 + 4 gleason score 7",
-      "3 + 4 (+5) = 7"
+      "3 + 4 (+5) = 7",
+      "5 4"
     ),
     match_types   = c(
       "a + b = c", "c", "a + b = c", "a + b = c", "a + b",
       "a + b = c",
-      "a + b + t = c"
+      "a + b + t = c",
+      "a"
     )
   )
   expected <- data.table::data.table(
-    pos = 1:7,
-    a = c(3, NA, 3, 3,  3, 3, 3), 
-    b = c(4, NA, 4, 4,  4, 4, 4), 
-    c = c(7,  7, 7, 7, NA, 7, 7),
+    pos = c(1:7, 8L,8L),
+    a = c(3, NA, 3, 3,  3, 3, 3,  5, 4), 
+    b = c(4, NA, 4, 4,  4, 4, 4, NA,NA), 
+    c = c(7,  7, 7, 7, NA, 7, 7, NA,NA),
     key = "pos"
   )
   stopifnot(all.equal(
@@ -928,15 +925,16 @@ local({
     extract_gleason_scores(
       texts = c("gleason 4 + 4 = gleason 8", "gleason 8", "gleason 4 + 4",
                 "gleason 3 + 4 + 5 = 7", "gleason 3 + 4 (+ 5) = 7",
-                "gleason 3 + 4 + 5", "gleason 3 + 4 (+ 5)"),
+                "gleason 3 + 4 + 5", "gleason 3 + 4 (+ 5)",
+                "primääri gleason 5 4"),
       format = "standard",
       pattern_dt = fcr_pattern_dt
     )
   )
   expected <- data.table::data.table(
-    a = c(4L,NA,4L, 3L,3L, 3L,3L), 
-    b = c(4L,NA,4L, 4L,4L, 4L,4L), 
-    c = c(8L,8L,NA, 7L,7L, NA,NA)
+    a = c(4L,NA,4L, 3L,3L, 3L,3L, 5L,4L), 
+    b = c(4L,NA,4L, 4L,4L, 4L,4L, NA,NA), 
+    c = c(8L,8L,NA, 7L,7L, NA,NA, NA,NA)
   )
   stopifnot(all.equal(
     expected, 
