@@ -658,24 +658,29 @@ component_parsing_instructions_by_match_type <- function() {
   re_abt <- "[2-5]"
   re_c <- "([6-9]|10)"
   re_plus <- "[^0-9+,]*[+,][^0-9+,]*"
-  re_mask <- "_"
+  re_mask_prefix <- "_"
+  re_nonmask_prefix <- "(^|[^_])"
+  # to avoid e.g. %ORDER=001%; see extract_context_affixed_values
+  re_nonmask_digit_suffix <- "($|(?=[^%0-9]))"
   abtc_dt <- data.table::data.table(
     pattern_name = c("a","b","t","c"),
-    prefix = c("", re_mask, re_mask, ""),
-    value  = c(re_abt, re_abt, re_abt, re_c),
-    suffix = c(re_plus, re_plus, "", "")
+    prefix = c(re_nonmask_prefix, re_mask_prefix, re_mask_prefix, ""),
+    value  = c(re_abt           , re_abt        , re_abt        , re_c),
+    suffix = c(re_plus          , re_plus       ,             "", "")
   )
   abc_dt <- abtc_dt[abtc_dt[["pattern_name"]] %in% c("a", "b", "c"), ]
   abc_dt[abc_dt[["pattern_name"]] == "b", "suffix" := ""]
   abt_dt <- abtc_dt[abtc_dt[["pattern_name"]] %in% c("a", "b", "t"), ]
   ab_dt <- abc_dt[abc_dt[["pattern_name"]] %in% c("a", "b"), ]
   ac_dt <- abc_dt[abc_dt[["pattern_name"]] %in% c("a", "c"), ]
+  ac_dt[, "prefix" := rep(re_nonmask_prefix, 2L)]
+  ac_dt[, "suffix" := rep("", 2L)]
+    
   a_dt <- data.table::data.table(
     pattern_name = "a",
-    prefix = "",
+    prefix = re_nonmask_prefix,
     value = re_abt,
-    # to avoid e.g. %ORDER=001%; see extract_context_affixed_values
-    suffix = "(($)|([^%0-9]))" 
+    suffix = re_nonmask_digit_suffix
   )
   b_dt <- data.table::copy(a_dt)
   b_dt[, "pattern_name" := "b"]
@@ -686,11 +691,11 @@ component_parsing_instructions_by_match_type <- function() {
   c_dt[, "pattern_name" := "c"]
   list(
     "kw_all_a" = list(pattern_dt = ab_dt[], n_max_tries_per_pattern = 1L),
-    "a + b + t = c" = list(pattern_dt = abtc_dt[], n_max_tries_per_pattern = 1L),
-    "a + b + t" = list(pattern_dt = abt_dt[], n_max_tries_per_pattern = 1L),
-    "a + b = c" = list(pattern_dt = abc_dt[], n_max_tries_per_pattern = 1L),
-    "a + b" = list(pattern_dt = ab_dt[], n_max_tries_per_pattern = 1L),
-    "a...c" = list(pattern_dt = ac_dt[], n_max_tries_per_pattern = 1L),
+    "a + b + t = c" = list(pattern_dt = abtc_dt[], n_max_tries_per_pattern = 10L),
+    "a + b + t" = list(pattern_dt = abt_dt[], n_max_tries_per_pattern = 10L),
+    "a + b = c" = list(pattern_dt = abc_dt[], n_max_tries_per_pattern = 10L),
+    "a + b" = list(pattern_dt = ab_dt[], n_max_tries_per_pattern = 10L),
+    "a...c" = list(pattern_dt = ac_dt[], n_max_tries_per_pattern = 10L),
     "a" = list(pattern_dt = a_dt[], n_max_tries_per_pattern = 10L),
     "b" = list(pattern_dt = b_dt[], n_max_tries_per_pattern = 10L),
     "c" = list(pattern_dt = c_dt[], n_max_tries_per_pattern = 10L),
@@ -812,20 +817,24 @@ local({
       "3 + 4 = 7", "7", "3 + 4 (7)", "7 (3 + 4)", "3 + 4",
       "3 + 4 gleason score 7",
       "3 + 4 (+5) = 7",
-      "5 4"
+      "3 + 4 (+5)",
+      "5 4",
+      "3 + 4 / 4 + 3"
     ),
     match_types   = c(
       "a + b = c", "c", "a + b = c", "a + b = c", "a + b",
       "a + b = c",
       "a + b + t = c",
-      "a"
+      "a + b + t",
+      "a",
+      "a + b"
     )
   )
   expected <- data.table::data.table(
-    pos = c(1:7, 8L,8L),
-    a = c(3, NA, 3, 3,  3, 3, 3,  5, 4), 
-    b = c(4, NA, 4, 4,  4, 4, 4, NA,NA), 
-    c = c(7,  7, 7, 7, NA, 7, 7, NA,NA),
+    pos = c(1:7, 8, 9,9, 10,10),
+    a = c(3, NA, 3, 3,  3,3,3,  3,  5, 4,  3, 4), 
+    b = c(4, NA, 4, 4,  4,4,4,  4, NA,NA,  4, 3), 
+    c = c(7,  7, 7, 7, NA,7,7, NA, NA,NA, NA,NA),
     key = "pos"
   )
   stopifnot(all.equal(
