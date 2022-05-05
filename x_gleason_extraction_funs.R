@@ -453,6 +453,14 @@ fcr_pattern_dt <- local({
     )
     kw_all_a_value <- score_a_or_b
     kw_all_a_suffix <- default_regex_suffix
+    kw_all_a_full <- paste0(kw_all_a_prefix, kw_all_a_value, kw_all_a_suffix)
+    stopifnot(
+      stringr::str_detect("yksinomaan gleason", kw_all_a_prefix),
+      # shortcoming: reverse order not detected!
+      !stringr::str_detect("gleason yksinomaan", kw_all_a_prefix),
+      stringr::str_detect("endast gleason 3", kw_all_a_full),
+      stringr::str_detect("yksinomaan gleason 3", kw_all_a_full)
+    )
     
     # kw_a ---------------------------------------------------------------------
     # `kw_a_*` objects define the regexes for keyword + grade A expressions.
@@ -935,15 +943,16 @@ local({
       texts = c("gleason 4 + 4 = gleason 8", "gleason 8", "gleason 4 + 4",
                 "gleason 3 + 4 + 5 = 7", "gleason 3 + 4 (+ 5) = 7",
                 "gleason 3 + 4 + 5", "gleason 3 + 4 (+ 5)",
-                "primääri gleason 5 4"),
+                "primääri gleason 5 4",
+                "inspect this: yksinomaan gleason 3"),
       format = "standard",
       pattern_dt = fcr_pattern_dt
     )
   )
   expected <- data.table::data.table(
-    a = c(4L,NA,4L, 3L,3L, 3L,3L, 5L,4L), 
-    b = c(4L,NA,4L, 4L,4L, 4L,4L, NA,NA), 
-    c = c(8L,8L,NA, 7L,7L, NA,NA, NA,NA)
+    a = c(4L,NA,4L, 3L,3L, 3L,3L, 5L,4L, 4L), 
+    b = c(4L,NA,4L, 4L,4L, 4L,4L, NA,NA, 4L), 
+    c = c(8L,8L,NA, 7L,7L, NA,NA, NA,NA, NA)
   )
   stopifnot(all.equal(
     expected, 
