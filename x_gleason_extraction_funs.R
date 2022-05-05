@@ -698,7 +698,7 @@ component_parsing_instructions_by_match_type <- function() {
   c_dt[, "value" := re_c]
   c_dt[, "pattern_name" := "c"]
   list(
-    "kw_all_a" = list(pattern_dt = ab_dt[], n_max_tries_per_pattern = 1L),
+    "kw_all_a" = list(pattern_dt = a_dt[], n_max_tries_per_pattern = 1L),
     "a + b + t = c" = list(pattern_dt = abtc_dt[], n_max_tries_per_pattern = 10L),
     "a + b + t" = list(pattern_dt = abt_dt[], n_max_tries_per_pattern = 10L),
     "a + b = c" = list(pattern_dt = abc_dt[], n_max_tries_per_pattern = 10L),
@@ -783,6 +783,7 @@ parse_gleason_value_string_elements <- function(
     if (nrow(dt) == 0L) {
       return(NULL)
     }
+    
     # e.g. at this point 
     # data.table::data.table(pos = 8L, pattern_name = "a", value = c(5L, 4L))
     # needs to be turned into a wide table. cannot cast without distinguishin
@@ -801,6 +802,13 @@ parse_gleason_value_string_elements <- function(
     .SDcols = value_col_nms
   ]
   parsed_dt[, "value_string" := value_strings[parsed_dt[["pos"]]]]
+  
+  # kw_all_a implies a == b, but at this point b is missing.
+  parsed_dt[
+    parsed_dt[["match_type"]] == "kw_all_a", 
+    "b" := .SD[[1]],
+    .SDcols = "a"
+  ]
   
   # to enforce order (and existence) of columns
   parsed_dt <- rbind(
@@ -827,7 +835,8 @@ local({
       "3 + 4 (+5) = 7",
       "3 + 4 (+5)",
       "5 4",
-      "3 + 4 / 4 + 3"
+      "3 + 4 / 4 + 3",
+      "3"
     ),
     match_types   = c(
       "a + b = c", "c", "a + b = c", "a + b = c", "a + b",
@@ -835,14 +844,15 @@ local({
       "a + b + t = c",
       "a + b + t",
       "a",
-      "a + b"
+      "a + b",
+      "kw_all_a"
     )
   )
   expected <- data.table::data.table(
-    pos = c(1:7, 8, 9,9, 10,10),
-    a = c(3, NA, 3, 3,  3,3,3,  3,  5, 4,  3, 4), 
-    b = c(4, NA, 4, 4,  4,4,4,  4, NA,NA,  4, 3), 
-    c = c(7,  7, 7, 7, NA,7,7, NA, NA,NA, NA,NA),
+    pos = c(1:7, 8, 9,9, 10,10, 11),
+    a = c(3, NA, 3, 3,  3,3,3,  3,  5, 4,  3, 4,  3), 
+    b = c(4, NA, 4, 4,  4,4,4,  4, NA,NA,  4, 3,  3), 
+    c = c(7,  7, 7, 7, NA,7,7, NA, NA,NA, NA,NA, NA),
     key = "pos"
   )
   stopifnot(all.equal(
@@ -944,14 +954,14 @@ local({
                 "gleason 3 + 4 + 5 = 7", "gleason 3 + 4 (+ 5) = 7",
                 "gleason 3 + 4 + 5", "gleason 3 + 4 (+ 5)",
                 "primääri gleason 5 4",
-                "inspect this: yksinomaan gleason 3"),
+                "yksinomaan gleason 3"),
       format = "standard",
       pattern_dt = fcr_pattern_dt
     )
   )
   expected <- data.table::data.table(
-    a = c(4L,NA,4L, 3L,3L, 3L,3L, 5L,4L, 4L), 
-    b = c(4L,NA,4L, 4L,4L, 4L,4L, NA,NA, 4L), 
+    a = c(4L,NA,4L, 3L,3L, 3L,3L, 5L,4L, 3L), 
+    b = c(4L,NA,4L, 4L,4L, 4L,4L, NA,NA, 3L), 
     c = c(8L,8L,NA, 7L,7L, NA,NA, NA,NA, NA)
   )
   stopifnot(all.equal(
