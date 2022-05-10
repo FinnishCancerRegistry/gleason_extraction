@@ -43,7 +43,7 @@ fcr_add_dt <- man_dt[
 all_text_ids <- sort(unique(man_dt[["text_id"]]))
 
 man_dt[, "obs_id" := 1:.N]
-man_dt[, "match_type" := ut$infer_match_type(a, b, c)]
+man_dt[, "match_type" := ut$infer_match_type(a, b, t, c)]
 data.table::setkeyv(man_dt, c("text_id", "obs_id"))
 man_dt <- ut$typed_format_dt_to_standard_format_dt(man_dt)
 man_dt[, "implied_c" := data.table::fifelse(!is.na(a) & !is.na(b), a + b, c)]

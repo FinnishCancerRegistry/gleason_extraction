@@ -191,12 +191,13 @@ check_match_types <- function(match_types) {
   )
 }
 
-check_gleason_a_values <- check_gleason_b_values <- function(values) {
+check_gleason_a_values <- function(values) {
   stopifnot(
     is.integer(values),
     values %in% c(2:5, NA_integer_)
   )
 }
+check_gleason_b_values <- check_gleason_t_values <- check_gleason_a_values
 
 check_gleason_c_values <- function(values) {
   stopifnot(
@@ -205,13 +206,15 @@ check_gleason_c_values <- function(values) {
   )
 }
 
-check_gleason_abc_values <- function(a, b, c) {
+check_gleason_abtc_values <- function(a, b, t, c) {
   check_gleason_a_values(a)
   check_gleason_b_values(b)
+  check_gleason_t_values(t)
   check_gleason_c_values(c)
   stopifnot(
     length(a) == length(b),
-    length(c) == length(a)
+    length(c) == length(a),
+    length(t) == length(a)
   )
   
   has_abc <- !is.na(a + b + c)
@@ -224,61 +227,61 @@ check_gleason_abc_values <- function(a, b, c) {
   invisible(NULL)
 }
 
-infer_match_type <- function(a, b, c) {
-  check_gleason_abc_values(a, b, c)
+infer_match_type <- function(a, b, t, c) {
+  check_gleason_abtc_values(a, b, t, c)
   
   type <- rep(NA_character_, length(a))
   has_a <- !is.na(a)
   has_b <- !is.na(b)
   has_c <- !is.na(c)
-  type[has_a & has_b & has_c] <- "a + b = c"
-  type[has_a & has_b & !has_c] <- "a + b"
-  type[has_a & !has_b & !has_c] <- "a"
-  type[!has_a & has_b & !has_c] <- "b"
-  type[!has_a & !has_b & has_c] <- "c"
-  
-  # type <- factor(type, levels = c("a + b = c", "a + b", "a", "b", "c"))
+  has_t <- !is.na(t)
+  type[ has_a &  has_b &  has_t &  has_c] <- "a + b + t = c"
+  type[ has_a &  has_b & !has_t &  has_c] <- "a + b = c"
+  type[ has_a &  has_b &  has_t & !has_c] <- "a + b + t"
+  type[ has_a &  has_b & !has_t & !has_c] <- "a + b"
+  type[ has_a & !has_b & !has_t & !has_c] <- "a"
+  type[!has_a &  has_b & !has_t & !has_c] <- "b"
+  type[!has_a & !has_b &  has_t & !has_c] <- "t"
+  type[!has_a & !has_b & !has_t &  has_c] <- "c"
   
   return(type)
 }
 
-infer_standard_format_match_type <- function(a_src, b_src, c_src) {
+infer_standard_format_match_type <- function(a_src, b_src, t_src, c_src) {
   stopifnot(
     is.character(a_src),
     is.character(b_src),
+    is.character(t_src),
     is.character(c_src),
     length(a_src) == length(b_src),
-    length(b_src) == length(c_src)
+    length(b_src) == length(c_src),
+    length(t_src) == length(c_src)
   )
   sum_re <- "\\d\\s*\\+\\s*\\d"
   is_addition_with_sum <- grepl(sum_re, c_src)
   is_addition_without_sum <- grepl(sum_re, a_src) & !is_addition_with_sum
   is_gleasonless <- is.na(a_src) & is.na(b_src) & is.na(c_src)
+  has_tertiary <- !is.na(t_src)
   
   type <- rep(NA_character_, length(a_src))
-  type[is_addition_without_sum] <- "a + b"
-  type[is_addition_with_sum] <- "a + b = c"
+  type[is_addition_without_sum & !has_tertiary] <- "a + b"
+  type[is_addition_without_sum &  has_tertiary] <- "a + b + t"
+  type[is_addition_with_sum & !has_tertiary] <- "a + b = c"
+  type[is_addition_with_sum &  has_tertiary] <- "a + b + t = c"
   type[is_gleasonless] <- "gleasonless"
   type
 }
 
-infer_typed_format_match_type <- function(a_src, b_src, c_src) {
-  type <- infer_standard_format_match_type(a_src, b_src, c_src)
-  type[!is.na(a_src) & is.na(b_src) & is.na(c_src)] <- "a"
-  type[is.na(a_src) & !is.na(b_src) & is.na(c_src)] <- "b"
-  type[is.na(a_src) & is.na(b_src) & !is.na(c_src)] <- "c"
-  type
-}
 
 standard_format_dt_to_typed_format_dt <- function(dt) {
   requireNamespace("data.table")
   stopifnot(
     data.table::is.data.table(dt),
-    c("text_id", "text", "a", "b", "c", "a_src","b_src","c_src") %in% names(dt)
+    c("text_id", "text", "a", "b", "t", "c", "a_src","b_src", "t_src","c_src") %in% names(dt)
   )
   
   dt <- data.table::copy(dt)
-  dt[, "match_type" := infer_standard_format_match_type(a_src, b_src, c_src)]
+  dt[, "match_type" := infer_standard_format_match_type(a_src, b_src, t_src, c_src)]
   dt[match_type == "a + b", "src" := a_src]
   dt[match_type == "a + b = c", "src" := c_src]
   dt[match_type == "gleasonless", "src" := NA_character_]
@@ -377,24 +380,26 @@ determine_element_combinations <- function(dt, n_max_each = 5L) {
   requireNamespace("data.table")
   stopifnot(
     data.table::is.data.table(dt),
-    c("a", "b", "c") %in% names(dt),
-    !c("grp", "grp_type", "type") %in% names(dt),
-    # only one non-NA, i.e. two are NA
-    rowSums(dt[, lapply(.SD, is.na), .SDcols = c("a", "b", "c")]) == 2L
+    c("a", "b", "t", "c") %in% names(dt),
+    !c("grp", "grp_type", "type") %in% names(dt)
   )
   
   allowed_combinations <- list(
+    c("c", "a", "b", "t"),
     c("c", "a", "b"),
     c("c", "b", "a"),
+    c("a", "b", "t", "c"),
     c("a", "b", "c"),
     c("b", "a", "c"),
+    c("a", "b", "t"),
     c("a", "b"),
     "a",
     "b",
+    "t",
     "c"
   )
   
-  lapply(c("a", "b", "c"), function(elem_nm) {
+  lapply(c("a", "b", "t", "c"), function(elem_nm) {
     is_na <- is.na(dt[[elem_nm]])
     dt[!is_na, "type" := ..elem_nm]
     NULL
@@ -489,18 +494,19 @@ determine_element_combinations <- function(dt, n_max_each = 5L) {
 typed_format_dt_to_standard_format_dt <- function(dt) {
   stopifnot(
     data.table::is.data.table(dt),
-    c("text_id", "obs_id", "text", "match_type", "a", "b", "c") %in% names(dt),
+    c("text_id", "obs_id", "text", "match_type", "a", "b", "t", "c") %in% names(dt),
     is.integer(dt[["obs_id"]]),
     !duplicated(dt[["obs_id"]]),
     identical(data.table::key(dt)[1:2], c("text_id", "obs_id"))
   )
   check_match_types(dt[["match_type"]])
-  check_gleason_abc_values(a = dt[["a"]], b = dt[["b"]], c = dt[["c"]])
+  check_gleason_abtc_values(a = dt[["a"]], b = dt[["b"]],
+                            t = dt[["t"]], c = dt[["c"]])
   
   dt <- data.table::copy(dt)
   data.table::setkeyv(dt, c("text_id", "obs_id"))
   
-  is_single_elem_match <- dt[["match_type"]] %in% c("a", "b", "c")
+  is_single_elem_match <- dt[["match_type"]] %in% c("a", "b", "t", "c")
   elem_dt <- dt[is_single_elem_match, ]
   if (nrow(elem_dt) > 0L) {
     # sequential observations have diff(obs_id) == 1L, non-seq. have > 1L;
@@ -534,20 +540,25 @@ typed_format_dt_to_standard_format_dt <- function(dt) {
         j = {
           a <- a[!is.na(a)]
           b <- b[!is.na(b)]
+          t <- t[!is.na(t)]
           c <- c[!is.na(c)]
-          n <- max(length(a), length(b), length(c))
+          n <- max(length(a), length(b), length(t), length(c))
           if (length(a) == 0L) {
             a <- rep(NA_integer_, n)
           }
           if (length(b) == 0L) {
             b <- rep(NA_integer_, n)
           }
+          if (length(t) == 0L) {
+            t <- rep(NA_integer_, n)
+          }
           if (length(c) == 0L) {
             c <- rep(NA_integer_, n)
           }
           sd <- .SD[1:n, ]
-          cbind(sd, a = a, b = b, c = c)
-        }, .SDcols = setdiff(names(dt), c("a", "b", "c"))
+          cbind(sd, a = a, b = b, t = t, c = c)
+        }, 
+        .SDcols = setdiff(names(dt), c("a", "b", "t", "c"))
         ]
     })
     elem_dt <- data.table::rbindlist(elem_dt)
@@ -568,6 +579,7 @@ local({
     match_type = c("a", "b", "c"),
     a = c(3L, NA_integer_, NA_integer_),
     b = c(NA_integer_, 4L, NA_integer_),
+    t = rep(NA_integer_, 3L),
     c = c(NA_integer_, NA_integer_, 7L)
   )
   data.table::setkeyv(ex_dt, c("text_id", "obs_id"))
@@ -586,6 +598,7 @@ local({
     match_type = c("a", "b", "a"),
     a = c(3L, NA_integer_, 2L),
     b = c(NA_integer_, 4L, NA_integer_),
+    t = rep(NA_integer_, 3L),
     c = c(NA_integer_, NA_integer_, NA_integer_)
   )
   data.table::setkeyv(ex_dt, c("text_id", "obs_id"))

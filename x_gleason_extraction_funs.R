@@ -938,7 +938,7 @@ extract_gleason_scores <- function(
     parsed_dt <- ut$typed_format_dt_to_standard_format_dt(
       dt = parsed_dt
     )
-    keep_col_nms <- c("text_id", "obs_id", "a", "b", "c")
+    keep_col_nms <- c("text_id", "obs_id", "a", "b", "t", "c")
     parsed_dt <- parsed_dt[j = .SD,.SDcols = keep_col_nms]
     parsed_dt[i = id_dt, j = "obs_id" := i.orig_obs_id]
   }
@@ -956,15 +956,17 @@ local({
                 "gleason 3 + 4 + 5", "gleason 3 + 4 (+ 5)",
                 "primääri gleason 5 4",
                 "yksinomaan gleason 3",
-                "gleason 5+4 gleason 5+4 3/6"),
+                "gleason 5+4 gleason 5+4 3/6",
+                "tertiääri gleason 3"),
       format = "standard",
       pattern_dt = fcr_pattern_dt
     )
   )
   expected <- data.table::data.table(
-    a = c(4L,NA,4L, 3L,3L, 3L,3L, 5L,4L, 3L, 5L,5L), 
-    b = c(4L,NA,4L, 4L,4L, 4L,4L, NA,NA, 3L, 4L,4L), 
-    c = c(8L,8L,NA, 7L,7L, NA,NA, NA,NA, NA, NA,NA)
+    a = c(4L,NA,4L, 3L,3L, 3L,3L, 5L,4L, 3L, 5L,5L, NA), 
+    b = c(4L,NA,4L, 4L,4L, 4L,4L, NA,NA, 3L, 4L,4L, NA), 
+    t = c(NA,NA,NA, 5L,5L, 5L,5L, NA,NA, NA, NA,NA, 3L),
+    c = c(8L,8L,NA, 7L,7L, NA,NA, NA,NA, NA, NA,NA, NA)
   )
   stopifnot(all.equal(
     expected, 
