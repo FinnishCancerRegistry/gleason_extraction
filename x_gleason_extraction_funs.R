@@ -281,7 +281,7 @@ whitelist_secondary_regex <-  word_whitelist_to_word_whitelist_regex(
   whitelist_secondary
 )
 whitelist_secondary_regex <- paste0(
-  "((2[.])|toise|näst)[.a-zåäö]*[ ]?", whitelist_primary_regex
+  "((2[.])|toise|näst)[.a-zåäö]*[ ]?", whitelist_secondary_regex
 )
 whitelist_secondary_regex <- paste0(
   "(", 
