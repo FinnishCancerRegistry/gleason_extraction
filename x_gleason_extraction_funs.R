@@ -1155,6 +1155,7 @@ example_typed_format_dataset <- data.table::data.table(
                "gleason 4 + 4 = 8"), times = c(2, 2, 1)),
   a = c(4L,NA, 5L,NA, 4L),
   b = c(NA,3L, NA,4L, 4L),
+  t = NA_integer_,
   c = c(NA,NA, NA,NA, 8L)
 )
 
