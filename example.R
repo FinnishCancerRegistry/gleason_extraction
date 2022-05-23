@@ -19,7 +19,7 @@ source("x_confusion_funs.R", local = cf, encoding = "UTF-8")
 # manually extracted Gleason scores ---------------------------------------
 man_dt <- ge$example_typed_format_dataset
 stopifnot(
-  c("text_id", "text", "a", "b", "c") %in% names(man_dt)
+  c("text_id", "text", "a", "b", "t", "c") %in% names(man_dt)
 )
 
 # extraction --------------------------------------------------------------
