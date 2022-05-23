@@ -106,6 +106,9 @@ confusion_statistics <- function(
   )
   accuracy <- (n_true_positive + n_true_negative) / (n_positive + n_negative)
   precision <- n_true_positive / (n_true_positive + n_false_positive)
+  if (n_true_positive == 0) {
+    precision <- 0.0
+  }
   
   out_var_nms <- c(
     "sensitivity", "precision", "specificity", "accuracy", "F1",
@@ -116,7 +119,7 @@ confusion_statistics <- function(
   is_na <- is.na(out)
   if (any(is_na)) {
     message("NA values in output: ",
-            deparse(round(out[is.na], 4)))
+            deparse(round(out[is_na], 4)))
     browser()
   }
   return(out)
