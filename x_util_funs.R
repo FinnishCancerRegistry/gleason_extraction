@@ -373,6 +373,7 @@ standard_format_dt_to_typed_format_dt <- function(dt) {
 #' ex_dt <- data.table::data.table(
 #'    a = c(4L, 4L, NA, NA, NA, NA),
 #'    b = c(NA, NA, 3L, 4L, 5L, NA),
+#'    t = c(NA, NA, NA, NA, NA, NA),
 #'    c = c(NA, NA, NA, NA, NA, 9L)
 #' )
 #' determine_element_combinations(ex_dt)
