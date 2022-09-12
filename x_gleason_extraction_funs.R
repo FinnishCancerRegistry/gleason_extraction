@@ -841,13 +841,14 @@ parse_gleason_value_string_elements <- function(
   data.table::setkeyv(parsed_dt, "pos")
   return(parsed_dt[])
 }
-local({
+# local({
   produced <- parse_gleason_value_string_elements(
     value_strings = c(
       "3 + 4 = 7", "7", "3 + 4 (7)", "7 (3 + 4)", "3 + 4",
       "3 + 4 gleason score 7",
-      "3 + 4 (+5) = 7",
-      "3 + 4 (+5)",
+
+      "3 + 4 (+5) = 7", "3 + 4 (+5)","3+4+5",
+
       "5 4",
       "3 + 4 / 4 + 3",
       "3"
@@ -855,25 +856,43 @@ local({
     match_types   = c(
       "a + b = c", "c", "a + b = c", "a + b = c", "a + b",
       "a + b = c",
-      "a + b + t = c",
-      "a + b + t",
+
+      "a + b + t = c", "a + b + t", "a + b + t",
+
       "a",
       "a + b",
       "kw_all_a"
     )
   )
-  expected <- data.table::data.table(
-    pos = c(1:7, 8, 9,9, 10,10, 11),
-    a = c(3, NA, 3, 3,  3,3,3,  3,  5, 4,  3, 4,  3), 
-    b = c(4, NA, 4, 4,  4,4,4,  4, NA,NA,  4, 3,  3), 
-    c = c(7,  7, 7, 7, NA,7,7, NA, NA,NA, NA,NA, NA),
-    key = "pos"
+  expected <- rbind(
+    data.table::data.table(
+      pos = 1:6,
+      a   = c( 3, NA,  3,  3,  3,  3),
+      b   = c( 4, NA,  4,  4,  4,  4),
+      t   = NA_integer_,
+      c   = c( 7,  7,  7,  7, NA,  7)
+    ),
+    data.table::data.table(
+      pos = 7:9,
+      a   = c( 3,  3,  3),
+      b   = c( 4,  4,  4),
+      t   = c( 5,  5,  5),
+      c   = c( 7, NA, NA)
+    ),
+    data.table::data.table(
+      pos = c(10, 10, 11, 11, 12),
+      a   = c( 5,  4,  3,  4,  3),
+      b   = c(NA, NA,  4,  3,  3),
+      t   = NA_integer_,
+      c   = NA_integer_
+    )
   )
+  data.table::setkeyv(expected, "pos")
   stopifnot(all.equal(
     produced[, .SD, .SDcols = names(expected)], 
     expected
   ))
-})
+# })
 
 
 #' @title Extract Gleason Scores
