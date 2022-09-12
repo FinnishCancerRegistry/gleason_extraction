@@ -641,8 +641,21 @@ prepare_text <- function(x) {
   x <- rm_false_positives(ut$normalise_text(x))
   x <- gsub("\\([^0-9]+\\)", " ", x) # e.g. "(some words here)"
   x <- gsub("\\([ ]*[0-9]+[ ]*%[ ]*\\)", " ", x) # e.g. "(45 %)"
+  # e.g. "Is bad (Gleason score 9-10): no"
+  re_field_name_gleason_range <- paste0(
+    "[(][ ]*", 
+    whitelist_gleason_word, 
+    "[^0-9]*",
+    "[5-9][ ]*[-][ ]*([6-9]|(10))",
+    "[ ]*[)]"
+  )
+  x <- gsub(re_field_name_gleason_range, " ", x)
   gsub("[ ]+", " ", x)
 }
+stopifnot(
+  prepare_text("Gleason 7 (4+3)") == "gleason 7 (4+3)",
+  prepare_text("Is bad (Gleason score 9-10): no") == "is bad no"
+)
 
 # Function `clean_gleason_value_string` was written to ensure that the extracted
 # `value`string (see e.g. fcr_pattern_dt[["value"]]) only has characters
