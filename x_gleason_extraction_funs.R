@@ -679,16 +679,17 @@ local({
 component_parsing_instructions_by_match_type <- function() {
   re_abt <- "[2-5]"
   re_c <- "([6-9]|10)"
-  re_plus <- "[^0-9+,]*[+,][^0-9+,]*"
+  re_plus <- "[^0-9+,]?[+,][^0-9+,]?"
   re_mask_prefix <- "_"
   re_nonmask_prefix <- "(^|[^_])"
+  re_nonmask_nonplus_prefix <- "(^|[^_+])"
   # to avoid e.g. %ORDER=001%; see extract_context_affixed_values
   re_nonmask_digit_suffix <- "($|(?=[^%0-9]))"
   abtc_dt <- data.table::data.table(
     pattern_name = c("a","b","t","c"),
-    prefix = c(re_nonmask_prefix, re_mask_prefix, re_mask_prefix, ""),
+    prefix = c(re_nonmask_nonplus_prefix, re_mask_prefix, re_plus, re_nonmask_nonplus_prefix),
     value  = c(re_abt           , re_abt        , re_abt        , re_c),
-    suffix = c(re_plus          , re_plus       ,             "", "")
+    suffix = c(re_plus          , rep(re_nonmask_digit_suffix, 3))
   )
   abc_dt <- abtc_dt[abtc_dt[["pattern_name"]] %in% c("a", "b", "c"), ]
   abc_dt[abc_dt[["pattern_name"]] == "b", "suffix" := ""]
@@ -847,7 +848,8 @@ parse_gleason_value_string_elements <- function(
       "3 + 4 = 7", "7", "3 + 4 (7)", "7 (3 + 4)", "3 + 4",
       "3 + 4 gleason score 7",
 
-      "3 + 4 (+5) = 7", "3 + 4 (+5)","3+4+5",
+      "3 + 4 (+5) = 7", "3 + 4 (+5)", "3+4+5",
+      "4+3+5, gleason score 7",
 
       "5 4",
       "3 + 4 / 4 + 3",
@@ -858,6 +860,7 @@ parse_gleason_value_string_elements <- function(
       "a + b = c",
 
       "a + b + t = c", "a + b + t", "a + b + t",
+      "a + b + t = c",
 
       "a",
       "a + b",
@@ -873,14 +876,14 @@ parse_gleason_value_string_elements <- function(
       c   = c( 7,  7,  7,  7, NA,  7)
     ),
     data.table::data.table(
-      pos = 7:9,
-      a   = c( 3,  3,  3),
-      b   = c( 4,  4,  4),
-      t   = c( 5,  5,  5),
-      c   = c( 7, NA, NA)
+      pos = 7:10,
+      a   = c( 3,  3,  3,  4),
+      b   = c( 4,  4,  4,  3),
+      t   = c( 5,  5,  5,  5),
+      c   = c( 7, NA, NA,  7)
     ),
     data.table::data.table(
-      pos = c(10, 10, 11, 11, 12),
+      pos = c(11, 11, 12, 12, 13),
       a   = c( 5,  4,  3,  4,  3),
       b   = c(NA, NA,  4,  3,  3),
       t   = NA_integer_,
