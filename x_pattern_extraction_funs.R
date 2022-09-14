@@ -332,13 +332,16 @@ extract_context_affixed_values <- function(
           paste0("%PATTERN_NAME=", pattern_name, "%"), 
           new_mask
         )
+        text_elem <- sub(pattern, new_mask, text_elem, perl = TRUE)
         if (grepl("^inspect this", text_elem)) {
           browser()
         }
-        text_elem <- sub(pattern, new_mask, text_elem, perl = TRUE)
       }
     }
     
+    if (grepl("^inspect this", text_elem)) {
+      browser()
+    }
     dt <- data.table::setDT(list(
       pos = rep(i, length(extracted)),
       pattern_name = pattern_names,
