@@ -1,5 +1,8 @@
 # gleason_extraction
 
+The code in this repository has been ported into python and the R code contained here will not receive further updates.
+You can find the python code here: https://github.com/FinnishCancerRegistry/gleason_extraction_py.
+
 This repository contains the programme developed in the peer-reviewed study "Accurate pattern-based extraction of complex Gleason score expressions from pathology reports" (https://doi.org/10.1016/j.jbi.2021.103850).
 
 The study was conducted at the Finnish Cancer Registry (https://cancerregistry.fi/).
