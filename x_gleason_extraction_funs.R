@@ -191,7 +191,7 @@ stopifnot(
 # grade / score values ----------------------------------------------------
 # `score_a_or_b` defines what kinds of grades (A and B in A + B = C) are 
 # extracted.
-score_a_or_b <- "[2-5]"
+score_a_or_b <- "[3-5]"
 # `score_c` defines what kinds of scoresums (C in A + B = C) are extracted.
 score_c <- "(10|[6-9])"
 
