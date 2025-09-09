@@ -677,7 +677,7 @@ local({
 })
 
 component_parsing_instructions_by_match_type <- function() {
-  re_abt <- "[2-5]"
+  re_abt <- "[3-5]"
   re_c <- "([6-9]|10)"
   re_plus <- "[^0-9+,]?[+,][^0-9+,]?"
   re_mask_prefix <- "_"
